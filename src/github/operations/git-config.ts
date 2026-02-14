@@ -6,11 +6,8 @@
  */
 
 import { $ } from "bun";
-import { mkdir, writeFile, rm } from "fs/promises";
-import { join } from "path";
-import { homedir } from "os";
-import type { GitHubContext } from "../context";
-import { GITHUB_SERVER_URL } from "../api/config";
+import type { ParsedGitHubContext } from "../context";
+import { GITEA_SERVER_URL } from "../api/config";
 
 const SSH_SIGNING_KEY_PATH = join(homedir(), ".ssh", "claude_signing_key");
 
@@ -21,31 +18,37 @@ type GitUser = {
 
 export async function configureGitAuth(
   githubToken: string,
-  context: GitHubContext,
-  user: GitUser,
+  context: ParsedGitHubContext,
+  user: GitUser | null,
 ) {
   console.log("Configuring git authentication for non-signing mode");
 
   // Determine the noreply email domain based on GITHUB_SERVER_URL
-  const serverUrl = new URL(GITHUB_SERVER_URL);
+  const serverUrl = new URL(GITEA_SERVER_URL);
   const noreplyDomain =
     serverUrl.hostname === "github.com"
       ? "users.noreply.github.com"
       : `users.noreply.${serverUrl.hostname}`;
 
-  // Configure git user
+  // Configure git user based on the comment creator
   console.log("Configuring git user...");
-  const botName = user.login;
-  const botId = user.id;
-  console.log(`Setting git user as ${botName}...`);
-  await $`git config user.name "${botName}"`;
-  await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
-  console.log(`✓ Set git user as ${botName}`);
+  if (user) {
+    const botName = user.login;
+    const botId = user.id;
+    console.log(`Setting git user as ${botName}...`);
+    await $`git config user.name "${botName}"`;
+    await $`git config user.email "${botId}+${botName}@${noreplyDomain}"`;
+    console.log(`✓ Set git user as ${botName}`);
+  } else {
+    console.log("No user data in comment, using default bot user");
+    await $`git config user.name "github-actions[bot]"`;
+    await $`git config user.email "41898282+github-actions[bot]@${noreplyDomain}"`;
+  }
 
   // Remove the authorization header that actions/checkout sets
   console.log("Removing existing git authentication headers...");
   try {
-    await $`git config --unset-all http.${GITHUB_SERVER_URL}/.extraheader`;
+    await $`git config --unset-all http.${GITEA_SERVER_URL}/.extraheader`;
     console.log("✓ Removed existing authentication headers");
   } catch (e) {
     console.log("No existing authentication headers to remove");

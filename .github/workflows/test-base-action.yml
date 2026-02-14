@@ -21,8 +21,10 @@ jobs:
         uses: ./base-action
         with:
           prompt: ${{ github.event.inputs.test_prompt || 'List the files in the current directory starting with "package"' }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY && secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_CREDENTIALS }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CREDENTIALS }}
           allowed_tools: "LS,Read"
+          timeout_minutes: "3"
 
       - name: Verify inline prompt output
         run: |
@@ -78,8 +80,10 @@ jobs:
         uses: ./base-action
         with:
           prompt_file: "test-prompt.txt"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY && secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_CREDENTIALS }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CREDENTIALS }}
           allowed_tools: "LS,Read"
+          timeout_minutes: "3"
 
       - name: Verify prompt file output
         run: |

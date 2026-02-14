@@ -11,10 +11,7 @@ async function run() {
   try {
     validateEnvironmentVariables();
 
-    await setupClaudeCodeSettings(
-      process.env.INPUT_SETTINGS,
-      undefined, // homeDir
-    );
+    await setupClaudeCodeSettings(process.env.INPUT_SETTINGS);
 
     // Install Claude Code plugins if specified
     await installPlugins(
@@ -28,8 +25,7 @@ async function run() {
       promptFile: process.env.INPUT_PROMPT_FILE || "",
     });
 
-    const result = await runClaude(promptConfig.path, {
-      claudeArgs: process.env.INPUT_CLAUDE_ARGS,
+    await runClaude(promptConfig.path, {
       allowedTools: process.env.INPUT_ALLOWED_TOOLS,
       disallowedTools: process.env.INPUT_DISALLOWED_TOOLS,
       maxTurns: process.env.INPUT_MAX_TURNS,
@@ -38,9 +34,6 @@ async function run() {
       appendSystemPrompt: process.env.INPUT_APPEND_SYSTEM_PROMPT,
       fallbackModel: process.env.INPUT_FALLBACK_MODEL,
       model: process.env.ANTHROPIC_MODEL,
-      pathToClaudeCodeExecutable:
-        process.env.INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE,
-      showFullOutput: process.env.INPUT_SHOW_FULL_OUTPUT,
     });
 
     // Set outputs for the standalone base-action

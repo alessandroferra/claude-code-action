@@ -22,26 +22,31 @@ import type {
 import type { ParsedGitHubContext } from "../src/github/context";
 
 describe("checkContainsTrigger", () => {
-  describe("prompt trigger", () => {
-    it("should return true when prompt is provided", () => {
+  describe("direct prompt trigger", () => {
+    it("should return true when direct prompt is provided", () => {
       const context = createMockContext({
         eventName: "issues",
         eventAction: "opened",
         inputs: {
-          prompt: "Fix the bug in the login form",
+          mode: "tag",
           triggerPhrase: "/claude",
           assigneeTrigger: "",
           labelTrigger: "",
+          directPrompt: "Fix the bug in the login form",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          additionalPermissions: new Map(),
           useCommitSigning: false,
-          allowedBots: "",
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
     });
 
-    it("should return false when prompt is empty", () => {
+    it("should return false when direct prompt is empty", () => {
       const context = createMockContext({
         eventName: "issues",
         eventAction: "opened",
@@ -56,14 +61,19 @@ describe("checkContainsTrigger", () => {
           },
         } as IssuesEvent,
         inputs: {
-          prompt: "",
+          mode: "tag",
           triggerPhrase: "/claude",
           assigneeTrigger: "",
           labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          additionalPermissions: new Map(),
           useCommitSigning: false,
-          allowedBots: "",
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);
@@ -268,14 +278,19 @@ describe("checkContainsTrigger", () => {
           },
         } as PullRequestEvent,
         inputs: {
-          prompt: "",
+          mode: "tag",
           triggerPhrase: "@claude",
           assigneeTrigger: "",
           labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          additionalPermissions: new Map(),
           useCommitSigning: false,
-          allowedBots: "",
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -297,14 +312,19 @@ describe("checkContainsTrigger", () => {
           },
         } as PullRequestEvent,
         inputs: {
-          prompt: "",
+          mode: "tag",
           triggerPhrase: "@claude",
           assigneeTrigger: "",
           labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          additionalPermissions: new Map(),
           useCommitSigning: false,
-          allowedBots: "",
         },
       });
       expect(checkContainsTrigger(context)).toBe(true);
@@ -326,14 +346,356 @@ describe("checkContainsTrigger", () => {
           },
         } as PullRequestEvent,
         inputs: {
-          prompt: "",
+          mode: "tag",
           triggerPhrase: "@claude",
           assigneeTrigger: "",
           labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
           branchPrefix: "claude/",
           useStickyComment: false,
+          additionalPermissions: new Map(),
           useCommitSigning: false,
-          allowedBots: "",
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(false);
+    });
+  });
+
+  describe("pull request reviewer trigger", () => {
+    it("should return true when PR has trigger user as requested reviewer (same as text mention)", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        payload: {
+          action: "opened",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [
+              { login: "claude", id: 1, type: "User" },
+              { login: "other-reviewer", id: 2, type: "User" },
+            ],
+          },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+
+    it("should return true for synchronized PR with trigger user as reviewer", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "synchronized",
+        isPR: true,
+        payload: {
+          action: "synchronized",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [
+              { login: "claude", id: 1, type: "User" },
+            ],
+          },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+
+    it("should return false when PR has no matching requested reviewers", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        payload: {
+          action: "opened",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [
+              { login: "other-reviewer", id: 2, type: "User" },
+            ],
+          },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(false);
+    });
+
+    it("should handle trigger phrase without @ symbol", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        payload: {
+          action: "opened",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [
+              { login: "claude", id: 1, type: "User" },
+            ],
+          },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "claude", // No @ symbol
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+  });
+
+    it("should return true when PR has trigger user as requested reviewer for synchronized event", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "synchronized",
+        isPR: true,
+        payload: {
+          action: "synchronized",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [
+              { login: "claude", id: 1, type: "User" },
+            ],
+            requested_teams: [],
+          },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+
+    it("should return false when PR has no matching requested reviewers", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        payload: {
+          action: "opened",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [
+              { login: "other-reviewer", id: 2, type: "User" },
+            ],
+            requested_teams: [],
+          },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(false);
+    });
+
+    it("should handle trigger phrase without @ symbol", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        payload: {
+          action: "opened",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [
+              { login: "claude", id: 1, type: "User" },
+            ],
+            requested_teams: [],
+          },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "claude", // No @ symbol
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+
+    it("should handle empty requested_reviewers and requested_teams arrays", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        payload: {
+          action: "opened",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [],
+            requested_teams: [],
+          },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(false);
+    });
+
+    it("should handle missing requested_reviewers and requested_teams fields", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "opened",
+        isPR: true,
+        payload: {
+          action: "opened",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            // requested_reviewers and requested_teams are undefined
+          },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
         },
       });
       expect(checkContainsTrigger(context)).toBe(false);
@@ -449,7 +811,130 @@ describe("checkContainsTrigger", () => {
       });
     });
   });
-});
+
+  describe("pull request review_requested action", () => {
+    it("should return true when trigger user is requested as reviewer", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "review_requested",
+        isPR: true,
+        payload: {
+          action: "review_requested",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [{ login: "claude", id: 1, type: "User" }],
+            requested_teams: [],
+          },
+          requested_reviewer: { login: "claude", id: 1, type: "User" },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+
+    it("should return false when different user is requested as reviewer", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "review_requested",
+        isPR: true,
+        payload: {
+          action: "review_requested",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [{ login: "john", id: 2, type: "User" }],
+            requested_teams: [],
+          },
+          requested_reviewer: { login: "john", id: 2, type: "User" },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "@claude",
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(false);
+    });
+
+    it("should handle trigger phrase without @ symbol", () => {
+      const context = createMockContext({
+        eventName: "pull_request",
+        eventAction: "review_requested",
+        isPR: true,
+        payload: {
+          action: "review_requested",
+          pull_request: {
+            number: 123,
+            title: "Test PR",
+            body: "This PR fixes a bug",
+            created_at: "2023-01-01T00:00:00Z",
+            user: { login: "testuser" },
+            requested_reviewers: [{ login: "claude", id: 1, type: "User" }],
+            requested_teams: [],
+          },
+          requested_reviewer: { login: "claude", id: 1, type: "User" },
+        } as unknown as PullRequestEvent,
+        inputs: {
+          mode: "tag",
+          triggerPhrase: "claude", // no @ symbol
+          assigneeTrigger: "",
+          labelTrigger: "",
+          directPrompt: "",
+          overridePrompt: "",
+          allowedTools: [],
+          disallowedTools: [],
+          customInstructions: "",
+          branchPrefix: "claude/",
+          useStickyComment: false,
+          additionalPermissions: new Map(),
+          useCommitSigning: false,
+        },
+      });
+      expect(checkContainsTrigger(context)).toBe(true);
+    });
+  });
+
+  describe("non-matching events", () => {
+    it("should return false for non-matching event type", () => {
+      const context = createMockContext({
+        eventName: "push",
+        eventAction: "created",
+        payload: {} as any,
+      });
+      expect(checkContainsTrigger(context)).toBe(false);
+    });
+  });
 
 describe("escapeRegExp", () => {
   it("should escape special regex characters", () => {

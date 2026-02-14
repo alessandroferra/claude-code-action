@@ -69,7 +69,7 @@ Add the following to your workflow file:
   uses: anthropics/claude-code-base-action@beta
   with:
     prompt: "Review and fix TypeScript errors"
-    model: "claude-opus-4-1-20250805"
+    model: "claude-opus-4-20250514"
     fallback_model: "claude-sonnet-4-20250514"
     allowed_tools: "Bash(git:*),View,GlobTool,GrepTool,BatchTool"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -85,27 +85,27 @@ Add the following to your workflow file:
 
 ## Inputs
 
-| Input                     | Description                                                                                                             | Required | Default                      |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
-| `prompt`                  | The prompt to send to Claude Code                                                                                       | No\*     | ''                           |
-| `prompt_file`             | Path to a file containing the prompt to send to Claude Code                                                             | No\*     | ''                           |
-| `allowed_tools`           | Comma-separated list of allowed tools for Claude Code to use                                                            | No       | ''                           |
-| `disallowed_tools`        | Comma-separated list of disallowed tools that Claude Code cannot use                                                    | No       | ''                           |
-| `max_turns`               | Maximum number of conversation turns (default: no limit)                                                                | No       | ''                           |
-| `mcp_config`              | Path to the MCP configuration JSON file, or MCP configuration JSON string                                               | No       | ''                           |
-| `settings`                | Path to Claude Code settings JSON file, or settings JSON string                                                         | No       | ''                           |
-| `system_prompt`           | Override system prompt                                                                                                  | No       | ''                           |
-| `append_system_prompt`    | Append to system prompt                                                                                                 | No       | ''                           |
-| `claude_env`              | Custom environment variables to pass to Claude Code execution (YAML multiline format)                                   | No       | ''                           |
-| `model`                   | Model to use (provider-specific format required for Bedrock/Vertex)                                                     | No       | 'claude-4-0-sonnet-20250219' |
-| `anthropic_model`         | DEPRECATED: Use 'model' instead                                                                                         | No       | 'claude-4-0-sonnet-20250219' |
-| `fallback_model`          | Enable automatic fallback to specified model when default model is overloaded                                           | No       | ''                           |
-| `anthropic_api_key`       | Anthropic API key (required for direct Anthropic API)                                                                   | No       | ''                           |
-| `claude_code_oauth_token` | Claude Code OAuth token (alternative to anthropic_api_key)                                                              | No       | ''                           |
-| `use_bedrock`             | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                             | No       | 'false'                      |
-| `use_vertex`              | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                                           | No       | 'false'                      |
-| `use_node_cache`          | Whether to use Node.js dependency caching (set to true only for Node.js projects with lock files)                       | No       | 'false'                      |
-| `show_full_output`        | Show full JSON output (⚠️ May expose secrets - see [security docs](../docs/security.md#️-full-output-security-warning)) | No       | 'false'\*\*                  |
+| Input                     | Description                                                                                       | Required | Default                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| `prompt`                  | The prompt to send to Claude Code                                                                 | No\*     | ''                           |
+| `prompt_file`             | Path to a file containing the prompt to send to Claude Code                                       | No\*     | ''                           |
+| `allowed_tools`           | Comma-separated list of allowed tools for Claude Code to use                                      | No       | ''                           |
+| `disallowed_tools`        | Comma-separated list of disallowed tools that Claude Code cannot use                              | No       | ''                           |
+| `max_turns`               | Maximum number of conversation turns (default: no limit)                                          | No       | ''                           |
+| `mcp_config`              | Path to the MCP configuration JSON file, or MCP configuration JSON string                         | No       | ''                           |
+| `settings`                | Path to Claude Code settings JSON file, or settings JSON string                                   | No       | ''                           |
+| `system_prompt`           | Override system prompt                                                                            | No       | ''                           |
+| `append_system_prompt`    | Append to system prompt                                                                           | No       | ''                           |
+| `claude_env`              | Custom environment variables to pass to Claude Code execution (YAML multiline format)             | No       | ''                           |
+| `model`                   | Model to use (provider-specific format required for Bedrock/Vertex)                               | No       | 'claude-4-0-sonnet-20250219' |
+| `anthropic_model`         | DEPRECATED: Use 'model' instead                                                                   | No       | 'claude-4-0-sonnet-20250219' |
+| `fallback_model`          | Enable automatic fallback to specified model when default model is overloaded                     | No       | ''                           |
+| `timeout_minutes`         | Timeout in minutes for Claude Code execution                                                      | No       | '10'                         |
+| `anthropic_api_key`       | Anthropic API key (required for direct Anthropic API)                                             | No       | ''                           |
+| `claude_code_oauth_token` | Claude Code OAuth token (alternative to anthropic_api_key)                                        | No       | ''                           |
+| `use_bedrock`             | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                       | No       | 'false'                      |
+| `use_vertex`              | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                     | No       | 'false'                      |
+| `use_node_cache`          | Whether to use Node.js dependency caching (set to true only for Node.js projects with lock files) | No       | 'false'                      |
 
 \*Either `prompt` or `prompt_file` must be provided, but not both.
 
@@ -219,7 +219,7 @@ Provide the settings configuration directly as a JSON string:
     prompt: "Your prompt here"
     settings: |
       {
-        "model": "claude-opus-4-1-20250805",
+        "model": "claude-opus-4-20250514",
         "env": {
           "DEBUG": "true",
           "API_URL": "https://api.example.com"
@@ -322,6 +322,7 @@ You can combine MCP config with other inputs like allowed tools:
     prompt: "Access the custom MCP server and use its tools"
     mcp_config: "mcp-config.json"
     allowed_tools: "Bash(git:*),View,mcp__server-name__custom_tool"
+    timeout_minutes: "15"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 

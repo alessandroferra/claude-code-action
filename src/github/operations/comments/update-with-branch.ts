@@ -10,15 +10,14 @@ import {
   createBranchLink,
   createCommentBody,
 } from "./common";
-import { type Octokits } from "../../api/client";
+import { type GitHubClient } from "../../api/client";
 import {
   isPullRequestReviewCommentEvent,
   type ParsedGitHubContext,
 } from "../../context";
-import { updateClaudeComment } from "./update-claude-comment";
 
 export async function updateTrackingComment(
-  octokit: Octokits,
+  client: GitHubClient,
   context: ParsedGitHubContext,
   commentId: number,
   branch?: string,
@@ -37,19 +36,21 @@ export async function updateTrackingComment(
 
   // Update the existing comment with the branch link
   try {
-    const isPRReviewComment = isPullRequestReviewCommentEvent(context);
-
-    await updateClaudeComment(octokit.rest, {
-      owner,
-      repo,
-      commentId,
-      body: updatedBody,
-      isPullRequestReviewComment: isPRReviewComment,
-    });
-
-    console.log(
-      `✅ Updated ${isPRReviewComment ? "PR review" : "issue"} comment ${commentId} with branch link`,
-    );
+    if (isPullRequestReviewCommentEvent(context)) {
+      // For PR review comments (inline comments), use the pulls API
+      await client.api.customRequest(
+        "PATCH",
+        `/api/v1/repos/${owner}/${repo}/pulls/comments/${commentId}`,
+        {
+          body: updatedBody,
+        },
+      );
+      console.log(`✅ Updated PR review comment ${commentId} with branch link`);
+    } else {
+      // For all other comments, use the issues API
+      await client.api.updateIssueComment(owner, repo, commentId, updatedBody);
+      console.log(`✅ Updated issue comment ${commentId} with branch link`);
+    }
   } catch (error) {
     console.error("Error updating comment with branch link:", error);
     throw error;

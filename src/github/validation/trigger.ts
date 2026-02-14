@@ -3,30 +3,38 @@
 import * as core from "@actions/core";
 import {
   isIssuesEvent,
-  isIssuesAssignedEvent,
   isIssueCommentEvent,
   isPullRequestEvent,
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
 } from "../context";
+import type { IssuesLabeledEvent } from "@octokit/webhooks-types";
 import type { ParsedGitHubContext } from "../context";
 
 export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   const {
-    inputs: { assigneeTrigger, labelTrigger, triggerPhrase, prompt },
+    inputs: { assigneeTrigger, triggerPhrase, directPrompt },
   } = context;
 
-  // If prompt is provided, always trigger
-  if (prompt) {
-    console.log(`Prompt provided, triggering action`);
+  console.log(
+    `Checking trigger: event=${context.eventName}, action=${context.eventAction}, phrase='${triggerPhrase}', assignee='${assigneeTrigger}', direct='${directPrompt}'`,
+  );
+
+  // If direct prompt is provided, always trigger
+  if (directPrompt) {
+    console.log(`Direct prompt provided, triggering action`);
     return true;
   }
 
   // Check for assignee trigger
-  if (isIssuesAssignedEvent(context)) {
+  if (isIssuesEvent(context) && context.eventAction === "assigned") {
     // Remove @ symbol from assignee_trigger if present
-    let triggerUser = assigneeTrigger.replace(/^@/, "");
-    const assigneeUsername = context.payload.assignee?.login || "";
+    let triggerUser = assigneeTrigger?.replace(/^@/, "") || "";
+    const assigneeUsername = context.payload.issue.assignee?.login || "";
+
+    console.log(
+      `Checking assignee trigger: user='${triggerUser}', assignee='${assigneeUsername}'`,
+    );
 
     if (triggerUser && assigneeUsername === triggerUser) {
       console.log(`Issue assigned to trigger user '${triggerUser}'`);
@@ -34,12 +42,22 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     }
   }
 
-  // Check for label trigger
+  // Check for issue label trigger
   if (isIssuesEvent(context) && context.eventAction === "labeled") {
-    const labelName = (context.payload as any).label?.name || "";
+    const triggerLabel = context.inputs.labelTrigger?.trim();
+    const appliedLabel = (context.payload as IssuesLabeledEvent).label?.name
+      ?.trim();
 
-    if (labelTrigger && labelName === labelTrigger) {
-      console.log(`Issue labeled with trigger label '${labelTrigger}'`);
+    console.log(
+      `Checking label trigger: expected='${triggerLabel}', applied='${appliedLabel}'`,
+    );
+
+    if (
+      triggerLabel &&
+      appliedLabel &&
+      triggerLabel.localeCompare(appliedLabel, undefined, { sensitivity: "accent" }) === 0
+    ) {
+      console.log(`Issue labeled with trigger label '${triggerLabel}'`);
       return true;
     }
   }
@@ -91,6 +109,20 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     if (regex.test(prTitle)) {
       console.log(
         `Pull request title contains exact trigger phrase '${triggerPhrase}'`,
+      );
+      return true;
+    }
+
+    // Check if trigger user is in requested reviewers (treat same as mention in text)
+    const triggerUser = triggerPhrase.replace(/^@/, "");
+    const requestedReviewers = context.payload.pull_request.requested_reviewers || [];
+    const isReviewerRequested = requestedReviewers.some(reviewer => 
+      'login' in reviewer && reviewer.login === triggerUser
+    );
+
+    if (isReviewerRequested) {
+      console.log(
+        `Pull request has '${triggerUser}' as requested reviewer (treating as trigger)`,
       );
       return true;
     }

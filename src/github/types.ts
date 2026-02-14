@@ -10,9 +10,6 @@ export type GitHubComment = {
   body: string;
   author: GitHubAuthor;
   createdAt: string;
-  updatedAt?: string;
-  lastEditedAt?: string;
-  isMinimized?: boolean;
 };
 
 export type GitHubReviewComment = GitHubComment & {
@@ -43,8 +40,6 @@ export type GitHubReview = {
   body: string;
   state: string;
   submittedAt: string;
-  updatedAt?: string;
-  lastEditedAt?: string;
   comments: {
     nodes: GitHubReviewComment[];
   };

@@ -1,5 +1,5 @@
-name: "Claude Code Action v1.0"
-description: "Flexible GitHub automation platform with Claude. Auto-detects mode based on event type: PR reviews, @claude mentions, or custom automation."
+name: "Claude Code Action Official"
+description: "General-purpose Claude agent for GitHub PRs and issues. Can answer questions and implement code changes."
 branding:
   icon: "at-sign"
   color: "orange"
@@ -16,23 +16,43 @@ inputs:
     description: "The label that triggers the action (e.g. claude)"
     required: false
     default: "claude"
-  base_branch:
-    description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
-    required: false
   branch_prefix:
     description: "The prefix to use for Claude branches (defaults to 'claude/', use 'claude-' for dash format)"
     required: false
     default: "claude/"
-  branch_name_template:
-    description: "Template for branch naming. Available variables: {{prefix}}, {{entityType}}, {{entityNumber}}, {{timestamp}}, {{sha}}, {{label}}, {{description}}. {{label}} will be first label from the issue/PR, or {{entityType}} as a fallback. {{description}} will be the first 5 words of the issue/PR title in kebab-case. Default: '{{prefix}}{{entityType}}-{{entityNumber}}-{{timestamp}}'"
+  mode:
+    description: "Execution mode for the action. Valid modes: 'tag' (default) or 'agent'"
+    required: false
+    default: "tag"
+  base_branch:
+    description: "The branch to use as the base/source when creating new branches (defaults to repository default branch)"
+    required: false
+
+  # Claude Code configuration
+  model:
+    description: "Model to use (provider-specific format required for Bedrock/Vertex)"
+    required: false
+  anthropic_model:
+    description: "DEPRECATED: Use 'model' instead. Model to use (provider-specific format required for Bedrock/Vertex)"
+    required: false
+  allowed_tools:
+    description: "Additional tools for Claude to use (the base GitHub tools will always be included)"
     required: false
     default: ""
-  allowed_bots:
-    description: "Comma-separated list of allowed bot usernames, or '*' to allow all bots. Empty string (default) allows no bots."
+  disallowed_tools:
+    description: "Tools that Claude should never use"
     required: false
     default: ""
-  allowed_non_write_users:
-    description: "Comma-separated list of usernames to allow without write permissions, or '*' to allow all users. Only works when github_token input is provided. WARNING: Use with extreme caution - this bypasses security checks and should only be used for workflows with very limited permissions (e.g., issue labeling)."
+  custom_instructions:
+    description: "Additional custom instructions to include in the prompt for Claude"
+    required: false
+    default: ""
+  direct_prompt:
+    description: "Direct instruction for Claude (bypasses normal trigger detection)"
+    required: false
+    default: ""
+  override_prompt:
+    description: "Complete replacement of Claude's prompt with custom template (supports variable substitution)"
     required: false
     default: ""
   include_comments_by_actor:
@@ -44,13 +64,29 @@ inputs:
     required: false
     default: ""
 
-  # Claude Code configuration
-  prompt:
-    description: "Instructions for Claude. Can be a direct prompt or custom template."
+  # New Claude Code settings
+  settings:
+    description: "Path to Claude Code settings JSON file, or settings JSON string"
     required: false
     default: ""
-  settings:
-    description: "Claude Code settings as JSON string or path to settings JSON file"
+  system_prompt:
+    description: "Override system prompt"
+    required: false
+    default: ""
+  append_system_prompt:
+    description: "Append to system prompt"
+    required: false
+    default: ""
+  claude_env:
+    description: "Custom environment variables to pass to Claude Code execution (YAML multiline format)"
+    required: false
+    default: ""
+  additional_permissions:
+    description: "Additional permissions to enable. Currently supports 'actions: read' for viewing workflow results"
+    required: false
+    default: ""
+  fallback_model:
+    description: "Enable automatic fallback to specified model when default model is overloaded"
     required: false
     default: ""
 
@@ -61,9 +97,14 @@ inputs:
   claude_code_oauth_token:
     description: "Claude Code OAuth token (alternative to anthropic_api_key)"
     required: false
-  github_token:
-    description: "GitHub token with repo and pull request permissions (optional if using GitHub App)"
+    default: ""
+  gitea_token:
+    description: "Gitea token with repo and pull request permissions (defaults to GITHUB_TOKEN)"
     required: false
+  path_to_claude_code_executable:
+    description: "Path to a custom Claude Code executable to use instead of installing"
+    required: false
+    default: ""
   use_bedrock:
     description: "Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API"
     required: false
@@ -72,67 +113,27 @@ inputs:
     description: "Use Google Vertex AI with OIDC authentication instead of direct Anthropic API"
     required: false
     default: "false"
-  use_foundry:
-    description: "Use Microsoft Foundry with OIDC authentication instead of direct Anthropic API"
+  use_node_cache:
+    description: "Whether to use Node.js dependency caching (set to true only for Node.js projects with lock files)"
     required: false
     default: "false"
 
-  claude_args:
-    description: "Additional arguments to pass directly to Claude CLI"
+  max_turns:
+    description: "Maximum number of conversation turns"
     required: false
     default: ""
-  additional_permissions:
-    description: "Additional GitHub permissions to request (e.g., 'actions: read')"
+  timeout_minutes:
+    description: "Timeout in minutes for execution"
     required: false
-    default: ""
-  use_sticky_comment:
-    description: "Use just one comment to deliver issue/PR comments"
+    default: "30"
+  claude_git_name:
+    description: "Git user.name for commits made by Claude"
     required: false
-    default: "false"
-  use_commit_signing:
-    description: "Enable commit signing using GitHub's commit signature verification. When false, Claude uses standard git commands"
+    default: "Claude"
+  claude_git_email:
+    description: "Git user.email for commits made by Claude"
     required: false
-    default: "false"
-  ssh_signing_key:
-    description: "SSH private key for signing commits. When provided, git will be configured to use SSH signing. Takes precedence over use_commit_signing."
-    required: false
-    default: ""
-  bot_id:
-    description: "GitHub user ID to use for git operations (defaults to Claude's bot ID)"
-    required: false
-    default: "41898282" # Claude's bot ID - see src/github/constants.ts
-  bot_name:
-    description: "GitHub username to use for git operations (defaults to Claude's bot name)"
-    required: false
-    default: "claude[bot]"
-  track_progress:
-    description: "Force tag mode with tracking comments for pull_request and issue events. Only applicable to pull_request (opened, synchronize, ready_for_review, reopened) and issue (opened, edited, labeled, assigned) events."
-    required: false
-    default: "false"
-  include_fix_links:
-    description: "Include 'Fix this' links in PR code review feedback that open Claude Code with context to fix the identified issue"
-    required: false
-    default: "true"
-  path_to_claude_code_executable:
-    description: "Optional path to a custom Claude Code executable. If provided, skips automatic installation and uses this executable instead. WARNING: Using an older version may cause problems if the action begins taking advantage of new Claude Code features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
-    required: false
-    default: ""
-  path_to_bun_executable:
-    description: "Optional path to a custom Bun executable. If provided, skips automatic Bun installation and uses this executable instead. WARNING: Using an incompatible version may cause problems if the action requires specific Bun features. This input is typically not needed unless you're debugging something specific or have unique needs in your environment."
-    required: false
-    default: ""
-  show_full_output:
-    description: "Show full JSON output from Claude Code. WARNING: This outputs ALL Claude messages including tool execution results which may contain secrets, API keys, or other sensitive information. These logs are publicly visible in GitHub Actions. Only enable for debugging in non-sensitive environments."
-    required: false
-    default: "false"
-  plugins:
-    description: "Newline-separated list of Claude Code plugin names to install (e.g., 'code-review@claude-code-plugins\nfeature-dev@claude-code-plugins')"
-    required: false
-    default: ""
-  plugin_marketplaces:
-    description: "Newline-separated list of Claude Code plugin marketplace Git URLs to install from (e.g., 'https://github.com/user/marketplace1.git\nhttps://github.com/user/marketplace2.git')"
-    required: false
-    default: ""
+    default: "claude@anthropic.com"
 
 outputs:
   execution_file:
@@ -140,125 +141,154 @@ outputs:
     value: ${{ steps.run.outputs.execution_file }}
   branch_name:
     description: "The branch created by Claude Code for this execution"
-    value: ${{ steps.run.outputs.branch_name }}
-  github_token:
-    description: "The GitHub token used by the action (Claude App token if available)"
-    value: ${{ steps.run.outputs.github_token }}
-  structured_output:
-    description: "JSON string containing all structured output fields when --json-schema is provided in claude_args. Use fromJSON() to parse: fromJSON(steps.id.outputs.structured_output).field_name"
-    value: ${{ steps.run.outputs.structured_output }}
-  session_id:
-    description: "The Claude Code session ID that can be used with --resume to continue this conversation"
-    value: ${{ steps.run.outputs.session_id }}
+    value: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
 
 runs:
   using: "composite"
   steps:
     - name: Install Bun
-      if: inputs.path_to_bun_executable == ''
-      uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # https://github.com/oven-sh/setup-bun/releases/tag/v2.1.2
+      uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # https://github.com/oven-sh/setup-bun/releases/tag/v2.0.2
       with:
         bun-version: 1.3.6
         token: ${{ inputs.github_token || github.token }}
 
-    - name: Setup Custom Bun Path
-      if: inputs.path_to_bun_executable != ''
-      shell: bash
-      env:
-        PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
-      run: |
-        echo "Using custom Bun executable: $PATH_TO_BUN_EXECUTABLE"
-        # Add the directory containing the custom executable to PATH
-        BUN_DIR=$(dirname "$PATH_TO_BUN_EXECUTABLE")
-        echo "$BUN_DIR" >> "$GITHUB_PATH"
-
     - name: Install Dependencies
       shell: bash
       run: |
-        cd ${GITHUB_ACTION_PATH}
-        bun install --production
+        cd ${{ github.action_path }}
+        bun install
 
     - name: Run Claude Code Action
       id: run
       shell: bash
       run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/run.ts
+        bun run ${{ github.action_path }}/src/entrypoints/prepare.ts
       env:
         # Prepare inputs
         MODE: ${{ inputs.mode }}
-        PROMPT: ${{ inputs.prompt }}
         TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
         ASSIGNEE_TRIGGER: ${{ inputs.assignee_trigger }}
         LABEL_TRIGGER: ${{ inputs.label_trigger }}
         BASE_BRANCH: ${{ inputs.base_branch }}
         BRANCH_PREFIX: ${{ inputs.branch_prefix }}
-        BRANCH_NAME_TEMPLATE: ${{ inputs.branch_name_template }}
-        OVERRIDE_GITHUB_TOKEN: ${{ inputs.github_token }}
-        ALLOWED_BOTS: ${{ inputs.allowed_bots }}
-        ALLOWED_NON_WRITE_USERS: ${{ inputs.allowed_non_write_users }}
-        INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
-        EXCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.exclude_comments_by_actor }}
-        GITHUB_RUN_ID: ${{ github.run_id }}
-        USE_STICKY_COMMENT: ${{ inputs.use_sticky_comment }}
-        DEFAULT_WORKFLOW_TOKEN: ${{ github.token }}
-        USE_COMMIT_SIGNING: ${{ inputs.use_commit_signing }}
-        SSH_SIGNING_KEY: ${{ inputs.ssh_signing_key }}
-        BOT_ID: ${{ inputs.bot_id }}
-        BOT_NAME: ${{ inputs.bot_name }}
-        TRACK_PROGRESS: ${{ inputs.track_progress }}
-        INCLUDE_FIX_LINKS: ${{ inputs.include_fix_links }}
+        ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
+        DISALLOWED_TOOLS: ${{ inputs.disallowed_tools }}
+        CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
+        DIRECT_PROMPT: ${{ inputs.direct_prompt }}
+        OVERRIDE_PROMPT: ${{ inputs.override_prompt }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
-        CLAUDE_ARGS: ${{ inputs.claude_args }}
-        ALL_INPUTS: ${{ toJson(inputs) }}
+        OVERRIDE_GITHUB_TOKEN: ${{ inputs.gitea_token }}
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITEA_API_URL: ${{ env.GITHUB_SERVER_URL }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
 
-        # Base-action inputs
-        INPUT_PROMPT_FILE: ${{ runner.temp }}/claude-prompts/claude-prompt.txt
-        INPUT_SETTINGS: ${{ inputs.settings }}
-        INPUT_EXPERIMENTAL_SLASH_COMMANDS_DIR: ${{ github.action_path }}/slash-commands
-        INPUT_PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
-        INPUT_PATH_TO_BUN_EXECUTABLE: ${{ inputs.path_to_bun_executable }}
-        INPUT_SHOW_FULL_OUTPUT: ${{ inputs.show_full_output }}
-        INPUT_PLUGINS: ${{ inputs.plugins }}
-        INPUT_PLUGIN_MARKETPLACES: ${{ inputs.plugin_marketplaces }}
-        PATH_TO_CLAUDE_CODE_EXECUTABLE: ${{ inputs.path_to_claude_code_executable }}
+    - name: Install Claude
+      if: steps.prepare.outputs.contains_trigger == 'true'
+      shell: bash
+      run: |
+        # Install Claude Code if no custom executable is provided
+        if [ -z "${{ inputs.path_to_claude_code_executable }}" ]; then
+          echo "Installing Claude Code..."
+          curl -fsSL https://claude.ai/install.sh | bash -s 1.0.117
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        else
+          echo "Using custom Claude Code executable: ${{ inputs.path_to_claude_code_executable }}"
+          # Add the directory containing the custom executable to PATH
+          CLAUDE_DIR=$(dirname "${{ inputs.path_to_claude_code_executable }}")
+          echo "$CLAUDE_DIR" >> "$GITHUB_PATH"
+        fi
+    # TODO pass claude_code_executable as input and use it here
 
-        # Model configuration
-        NODE_VERSION: ${{ env.NODE_VERSION }}
-
-        # Provider configuration
+    - name: Run Claude Code
+      id: claude-code
+      if: steps.prepare.outputs.contains_trigger == 'true'
+      uses: anthropics/claude-code-base-action@v0.0.63
+      with:
+        prompt_file: /tmp/claude-prompts/claude-prompt.txt
+        allowed_tools: ${{ env.ALLOWED_TOOLS }}
+        disallowed_tools: ${{ env.DISALLOWED_TOOLS }}
+        max_turns: ${{ inputs.max_turns }}
+        timeout_minutes: ${{ inputs.timeout_minutes }}
+        model: ${{ inputs.model || inputs.anthropic_model }}
+        mcp_config: ${{ steps.prepare.outputs.mcp_config }}
+        use_bedrock: ${{ inputs.use_bedrock }}
+        use_vertex: ${{ inputs.use_vertex }}
+        anthropic_api_key: ${{ inputs.anthropic_api_key }}
+        claude_code_oauth_token: ${{ inputs.claude_code_oauth_token }}
+        settings: ${{ inputs.settings }}
+        system_prompt: ${{ inputs.system_prompt }}
+        append_system_prompt: ${{ inputs.append_system_prompt }}
+        claude_env: ${{ inputs.claude_env }}
+        fallback_model: ${{ inputs.fallback_model }}
+        use_node_cache: ${{ inputs.use_node_cache }}
+      env:
+        # Core configuration
+        PROMPT_FILE: /tmp/claude-prompts/claude-prompt.txt
+        ALLOWED_TOOLS: ${{ env.ALLOWED_TOOLS }}
+        DISALLOWED_TOOLS: ${{ env.DISALLOWED_TOOLS }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
+        MODEL: ${{ inputs.model || inputs.anthropic_model }}
+        ANTHROPIC_MODEL: ${{ inputs.model || inputs.anthropic_model }}
+        MCP_CONFIG: ${{ steps.prepare.outputs.mcp_config }}
+        USE_BEDROCK: ${{ inputs.use_bedrock }}
+        USE_VERTEX: ${{ inputs.use_vertex }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.claude_code_oauth_token }}
-        ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
-        ANTHROPIC_CUSTOM_HEADERS: ${{ env.ANTHROPIC_CUSTOM_HEADERS }}
-        CLAUDE_CODE_USE_BEDROCK: ${{ inputs.use_bedrock == 'true' && '1' || '' }}
-        CLAUDE_CODE_USE_VERTEX: ${{ inputs.use_vertex == 'true' && '1' || '' }}
-        CLAUDE_CODE_USE_FOUNDRY: ${{ inputs.use_foundry == 'true' && '1' || '' }}
+        
+        # New settings support
+        SETTINGS: ${{ inputs.settings }}
+        SYSTEM_PROMPT: ${{ inputs.system_prompt }}
+        APPEND_SYSTEM_PROMPT: ${{ inputs.append_system_prompt }}
+        CLAUDE_ENV: ${{ inputs.claude_env }}
+        FALLBACK_MODEL: ${{ inputs.fallback_model }}
+        USE_NODE_CACHE: ${{ inputs.use_node_cache }}
 
-        # AWS configuration
+        # GitHub token for repository access
+        GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
+        GITEA_API_URL: ${{ env.GITHUB_SERVER_URL }}
+
+        # Git configuration
+        CLAUDE_GIT_NAME: ${{ inputs.claude_git_name }}
+        CLAUDE_GIT_EMAIL: ${{ inputs.claude_git_email }}
+
+        # Provider configuration (for future cloud provider support)
+        ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
         AWS_REGION: ${{ env.AWS_REGION }}
         AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
         AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
-        AWS_BEARER_TOKEN_BEDROCK: ${{ env.AWS_BEARER_TOKEN_BEDROCK }}
-        ANTHROPIC_BEDROCK_BASE_URL: ${{ env.ANTHROPIC_BEDROCK_BASE_URL || (env.AWS_REGION && format('https://bedrock-runtime.{0}.amazonaws.com', env.AWS_REGION)) }}
-
-        # GCP configuration
+        ANTHROPIC_BEDROCK_BASE_URL: ${{ env.ANTHROPIC_BEDROCK_BASE_URL }}
         ANTHROPIC_VERTEX_PROJECT_ID: ${{ env.ANTHROPIC_VERTEX_PROJECT_ID }}
         CLOUD_ML_REGION: ${{ env.CLOUD_ML_REGION }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         ANTHROPIC_VERTEX_BASE_URL: ${{ env.ANTHROPIC_VERTEX_BASE_URL }}
-
-        # Model-specific regions for Vertex
         VERTEX_REGION_CLAUDE_3_5_HAIKU: ${{ env.VERTEX_REGION_CLAUDE_3_5_HAIKU }}
         VERTEX_REGION_CLAUDE_3_5_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_5_SONNET }}
         VERTEX_REGION_CLAUDE_3_7_SONNET: ${{ env.VERTEX_REGION_CLAUDE_3_7_SONNET }}
 
-        # Microsoft Foundry configuration
-        ANTHROPIC_FOUNDRY_RESOURCE: ${{ env.ANTHROPIC_FOUNDRY_RESOURCE }}
-        ANTHROPIC_FOUNDRY_BASE_URL: ${{ env.ANTHROPIC_FOUNDRY_BASE_URL }}
-        ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ env.ANTHROPIC_DEFAULT_SONNET_MODEL }}
-        ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ env.ANTHROPIC_DEFAULT_HAIKU_MODEL }}
-        ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ env.ANTHROPIC_DEFAULT_OPUS_MODEL }}
+    - name: Update comment with job link
+      if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.claude_comment_id && always()
+      shell: bash
+      run: |
+        bun run ${{ github.action_path }}/src/entrypoints/update-comment-link.ts
+      env:
+        REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        CLAUDE_COMMENT_ID: ${{ steps.prepare.outputs.claude_comment_id }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
+        CLAUDE_BRANCH: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
+        IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment' }}
+        BASE_BRANCH: ${{ steps.prepare.outputs.BASE_BRANCH }}
+        CLAUDE_SUCCESS: ${{ steps.claude-code.outputs.conclusion == 'success' }}
+        OUTPUT_FILE: ${{ steps.claude-code.outputs.execution_file || '' }}
+        TRIGGER_USERNAME: ${{ github.event.comment.user.login || github.event.issue.user.login || github.event.pull_request.user.login || github.event.sender.login || github.triggering_actor || github.actor || '' }}
+        PREPARE_SUCCESS: ${{ steps.prepare.outcome == 'success' }}
+        PREPARE_ERROR: ${{ steps.prepare.outputs.prepare_error || '' }}
+        GITEA_API_URL: ${{ env.GITHUB_SERVER_URL }}
 
         # Telemetry configuration
         CLAUDE_CODE_ENABLE_TELEMETRY: ${{ env.CLAUDE_CODE_ENABLE_TELEMETRY }}
@@ -275,15 +305,11 @@ runs:
       if: always() && inputs.ssh_signing_key != ''
       shell: bash
       run: |
-        bun run ${GITHUB_ACTION_PATH}/src/entrypoints/cleanup-ssh-signing.ts
-
-    - name: Revoke app token
-      if: always() && inputs.github_token == '' && steps.run.outputs.skipped_due_to_workflow_validation_mismatch != 'true'
-      shell: bash
-      run: |
-        curl -L \
-          -X DELETE \
-          -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer ${{ steps.run.outputs.github_token }}" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          ${GITHUB_API_URL:-https://api.github.com}/installation/token
+        if [ -f "${{ steps.claude-code.outputs.execution_file }}" ]; then
+          echo "## Claude Code Report" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat "${{ steps.claude-code.outputs.execution_file }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ Claude Code execution completed but no report file was generated" >> $GITHUB_STEP_SUMMARY
+        fi

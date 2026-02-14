@@ -1,64 +1,55 @@
 import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
-import { checkAndCommitOrDeleteBranch } from "../src/github/operations/branch-cleanup";
-import type { Octokits } from "../src/github/api/client";
-import { GITHUB_SERVER_URL } from "../src/github/api/config";
+import { checkAndDeleteEmptyBranch } from "../src/github/operations/branch-cleanup";
+import type { GitHubClient } from "../src/github/api/client";
+import { GITEA_SERVER_URL } from "../src/github/api/config";
 
-describe("checkAndCommitOrDeleteBranch", () => {
+describe("checkAndDeleteEmptyBranch", () => {
   let consoleLogSpy: any;
   let consoleErrorSpy: any;
+  const originalEnv = { ...process.env };
 
   beforeEach(() => {
-    // Spy on console methods
     consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
     consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {});
+    delete process.env.GITEA_API_URL; // ensure GitHub mode for predictable behaviour
   });
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
     consoleErrorSpy.mockRestore();
+    process.env = { ...originalEnv };
   });
 
-  const createMockOctokit = (
-    compareResponse?: any,
-    deleteRefError?: Error,
-    branchExists: boolean = true,
-  ): Octokits => {
+  const createMockClient = (
+    options: { branchSha?: string; baseSha?: string; error?: Error } = {},
+  ): GitHubClient => {
+    const { branchSha = "branch-sha", baseSha = "base-sha", error } = options;
     return {
-      rest: {
-        repos: {
-          compareCommitsWithBasehead: async () => ({
-            data: compareResponse || { total_commits: 0 },
-          }),
-          getBranch: async () => {
-            if (!branchExists) {
-              const error: any = new Error("Not Found");
-              error.status = 404;
-              throw error;
-            }
-            return { data: {} };
-          },
-        },
-        git: {
-          deleteRef: async () => {
-            if (deleteRefError) {
-              throw deleteRefError;
-            }
-            return { data: {} };
-          },
+      api: {
+        getBranch: async (_owner: string, _repo: string, branch: string) => {
+          if (error) {
+            throw error;
+          }
+          return {
+            data: {
+              commit: {
+                sha: branch.includes("claude/") ? branchSha : baseSha,
+              },
+            },
+          };
         },
       },
-    } as any as Octokits;
+    } as unknown as GitHubClient;
   };
 
-  test("should return no branch link and not delete when branch is undefined", async () => {
-    const mockOctokit = createMockOctokit();
-    const result = await checkAndCommitOrDeleteBranch(
-      mockOctokit,
+  test("returns defaults when no claude branch provided", async () => {
+    const client = createMockClient();
+    const result = await checkAndDeleteEmptyBranch(
+      client,
       "owner",
       "repo",
       undefined,
       "main",
-      false,
     );
 
     expect(result.shouldDeleteBranch).toBe(false);
@@ -66,122 +57,65 @@ describe("checkAndCommitOrDeleteBranch", () => {
     expect(consoleLogSpy).not.toHaveBeenCalled();
   });
 
-  test("should mark branch for deletion when commit signing is enabled and no commits", async () => {
-    const mockOctokit = createMockOctokit({ total_commits: 0 });
-    const result = await checkAndCommitOrDeleteBranch(
-      mockOctokit,
+  test("marks branch for deletion when SHAs match", async () => {
+    const client = createMockClient({ branchSha: "same", baseSha: "same" });
+    const result = await checkAndDeleteEmptyBranch(
+      client,
       "owner",
       "repo",
-      "claude/issue-123-20240101-1234",
+      "claude/issue-123",
       "main",
-      true, // commit signing enabled
     );
 
     expect(result.shouldDeleteBranch).toBe(true);
     expect(result.branchLink).toBe("");
     expect(consoleLogSpy).toHaveBeenCalledWith(
-      "Branch claude/issue-123-20240101-1234 has no commits from Claude, will delete it",
+      "Branch claude/issue-123 has same SHA as base, marking for deletion",
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "Skipping branch deletion - not reliably supported across all Git platforms: claude/issue-123",
     );
   });
 
-  test("should not delete branch and return link when branch has commits", async () => {
-    const mockOctokit = createMockOctokit({ total_commits: 3 });
-    const result = await checkAndCommitOrDeleteBranch(
-      mockOctokit,
+  test("returns branch link when branch has commits", async () => {
+    const client = createMockClient({ branchSha: "feature", baseSha: "main" });
+    const result = await checkAndDeleteEmptyBranch(
+      client,
       "owner",
       "repo",
-      "claude/issue-123-20240101-1234",
+      "claude/issue-123",
       "main",
-      false,
     );
 
     expect(result.shouldDeleteBranch).toBe(false);
     expect(result.branchLink).toBe(
-      `\n[View branch](${GITHUB_SERVER_URL}/owner/repo/tree/claude/issue-123-20240101-1234)`,
+      `\n[View branch](${GITEA_SERVER_URL}/owner/repo/src/branch/claude/issue-123)`,
     );
-    expect(consoleLogSpy).not.toHaveBeenCalledWith(
-      expect.stringContaining("has no commits"),
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      "Branch claude/issue-123 appears to have commits (different SHA from base)",
     );
   });
 
-  test("should handle branch comparison errors gracefully", async () => {
-    const mockOctokit = {
-      rest: {
-        repos: {
-          compareCommitsWithBasehead: async () => {
-            throw new Error("API error");
-          },
-          getBranch: async () => ({ data: {} }), // Branch exists
-        },
-        git: {
-          deleteRef: async () => ({ data: {} }),
-        },
-      },
-    } as any as Octokits;
-
-    const result = await checkAndCommitOrDeleteBranch(
-      mockOctokit,
+  test("falls back to branch link when API call fails", async () => {
+    const client = createMockClient({ error: Object.assign(new Error("boom"), { status: 500 }) });
+    const result = await checkAndDeleteEmptyBranch(
+      client,
       "owner",
       "repo",
-      "claude/issue-123-20240101-1234",
+      "claude/issue-123",
       "main",
-      false,
     );
 
     expect(result.shouldDeleteBranch).toBe(false);
     expect(result.branchLink).toBe(
-      `\n[View branch](${GITHUB_SERVER_URL}/owner/repo/tree/claude/issue-123-20240101-1234)`,
+      `\n[View branch](${GITEA_SERVER_URL}/owner/repo/src/branch/claude/issue-123)`,
     );
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Error comparing commits on Claude branch:",
+      "Error checking branch:",
       expect.any(Error),
     );
-  });
-
-  test("should handle branch deletion errors gracefully", async () => {
-    const deleteError = new Error("Delete failed");
-    const mockOctokit = createMockOctokit({ total_commits: 0 }, deleteError);
-
-    const result = await checkAndCommitOrDeleteBranch(
-      mockOctokit,
-      "owner",
-      "repo",
-      "claude/issue-123-20240101-1234",
-      "main",
-      true, // commit signing enabled - will try to delete
-    );
-
-    expect(result.shouldDeleteBranch).toBe(true);
-    expect(result.branchLink).toBe("");
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Failed to delete branch claude/issue-123-20240101-1234:",
-      deleteError,
-    );
-  });
-
-  test("should return no branch link when branch doesn't exist remotely", async () => {
-    const mockOctokit = createMockOctokit(
-      { total_commits: 0 },
-      undefined,
-      false, // branch doesn't exist
-    );
-
-    const result = await checkAndCommitOrDeleteBranch(
-      mockOctokit,
-      "owner",
-      "repo",
-      "claude/issue-123-20240101-1234",
-      "main",
-      false,
-    );
-
-    expect(result.shouldDeleteBranch).toBe(false);
-    expect(result.branchLink).toBe("");
     expect(consoleLogSpy).toHaveBeenCalledWith(
-      "Branch claude/issue-123-20240101-1234 does not exist remotely",
-    );
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      "Branch claude/issue-123-20240101-1234 does not exist remotely, no branch link will be added",
+      "Assuming branch exists due to non-404 error",
     );
   });
 });

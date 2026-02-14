@@ -10,7 +10,7 @@ import { $ } from "bun";
 import { execFileSync } from "child_process";
 import type { ParsedGitHubContext } from "../context";
 import type { GitHubPullRequest } from "../types";
-import type { Octokits } from "../api/client";
+import type { GitHubClient } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
 import { generateBranchName } from "../../utils/branch-template";
 
@@ -128,14 +128,26 @@ export type BranchInfo = {
 };
 
 export async function setupBranch(
-  octokits: Octokits,
+  client: GitHubClient,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
 ): Promise<BranchInfo> {
   const { owner, repo } = context.repository;
   const entityNumber = context.entityNumber;
-  const { baseBranch, branchPrefix, branchNameTemplate } = context.inputs;
+  const { baseBranch } = context.inputs;
   const isPR = context.isPR;
+
+  // Determine base branch - use baseBranch if provided, otherwise fetch default
+  let sourceBranch: string;
+
+  if (baseBranch) {
+    // Use provided base branch for source
+    sourceBranch = baseBranch;
+  } else {
+    // No base branch provided, fetch the default branch to use as source
+    const repoResponse = await client.api.getRepo(owner, repo);
+    sourceBranch = repoResponse.data.default_branch;
+  }
 
   if (isPR) {
     const prData = githubData.contextData as GitHubPullRequest;
@@ -144,30 +156,28 @@ export async function setupBranch(
     // Check if PR is closed or merged
     if (prState === "CLOSED" || prState === "MERGED") {
       console.log(
-        `PR #${entityNumber} is ${prState}, creating new branch from source...`,
+        `PR #${entityNumber} is ${prState}, will let Claude create a new branch when needed`,
       );
-      // Fall through to create a new branch like we do for issues
+
+      // Check out the base branch and let Claude create branches as needed
+      await $`git fetch origin --depth=1 ${sourceBranch}`;
+      await $`git checkout ${sourceBranch}`;
+      await $`git pull origin ${sourceBranch}`;
+
+      return {
+        baseBranch: sourceBranch,
+        currentBranch: sourceBranch,
+      };
     } else {
       // Handle open PR: Checkout the PR branch
       console.log("This is an open PR, checking out PR branch...");
 
       const branchName = prData.headRefName;
 
-      // Determine optimal fetch depth based on PR commit count, with a minimum of 20
-      const commitCount = prData.commits.totalCount;
-      const fetchDepth = Math.max(commitCount, 20);
-
-      console.log(
-        `PR #${entityNumber}: ${commitCount} commits, using fetch depth ${fetchDepth}`,
-      );
-
-      // Validate branch names before use to prevent command injection
-      validateBranchName(branchName);
-
-      // Execute git commands to checkout PR branch (dynamic depth based on PR size)
-      // Using execFileSync instead of shell template literals for security
-      execGit(["fetch", "origin", `--depth=${fetchDepth}`, branchName]);
-      execGit(["checkout", branchName, "--"]);
+      // Execute git commands to checkout PR branch (shallow fetch for performance)
+      // Fetch the branch with a depth of 20 to avoid fetching too much history, while still allowing for some context
+      await $`git fetch origin --depth=20 ${branchName}`;
+      await $`git checkout ${branchName}`;
 
       console.log(`Successfully checked out PR branch for PR #${entityNumber}`);
 
@@ -182,121 +192,57 @@ export async function setupBranch(
     }
   }
 
-  // Determine source branch - use baseBranch if provided, otherwise fetch default
-  let sourceBranch: string;
-
-  if (baseBranch) {
-    // Use provided base branch for source
-    sourceBranch = baseBranch;
-  } else {
-    // No base branch provided, fetch the default branch to use as source
-    const repoResponse = await octokits.rest.repos.get({
-      owner,
-      repo,
-    });
-    sourceBranch = repoResponse.data.default_branch;
-  }
-
-  // Generate branch name for either an issue or closed/merged PR
-  const entityType = isPR ? "pr" : "issue";
-
-  // Get the SHA of the source branch to use in template
-  let sourceSHA: string | undefined;
+  // For issues, check out the base branch and let Claude create branches as needed
+  console.log(
+    `Setting up base branch ${sourceBranch} for issue #${entityNumber}, Claude will create branch when needed...`,
+  );
 
   try {
-    // Get the SHA of the source branch to verify it exists
-    const sourceBranchRef = await octokits.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${sourceBranch}`,
-    });
+    // Ensure we're in the repository directory
+    const repoDir = process.env.GITHUB_WORKSPACE || process.cwd();
+    console.log(`Working in directory: ${repoDir}`);
 
-    sourceSHA = sourceBranchRef.data.object.sha;
-    console.log(`Source branch SHA: ${sourceSHA}`);
+    // Check if we're in a git repository
+    console.log(`Checking if we're in a git repository...`);
+    await $`git status`;
 
-    // Extract first label from GitHub data
-    const firstLabel = extractFirstLabel(githubData);
+    // Ensure we have the latest version of the source branch
+    console.log(`Fetching latest ${sourceBranch}...`);
+    await $`git fetch origin --depth=1 ${sourceBranch}`;
 
-    // Extract title from GitHub data
-    const title = githubData.contextData.title;
+    // Checkout the source branch
+    console.log(`Checking out ${sourceBranch}...`);
+    await $`git checkout ${sourceBranch}`;
 
-    // Generate branch name using template or default format
-    let newBranch = generateBranchName(
-      branchNameTemplate,
-      branchPrefix,
-      entityType,
-      entityNumber,
-      sourceSHA,
-      firstLabel,
-      title,
-    );
+    // Pull latest changes
+    console.log(`Pulling latest changes for ${sourceBranch}...`);
+    await $`git pull origin ${sourceBranch}`;
 
-    // Check if generated branch already exists on remote
-    try {
-      await $`git ls-remote --exit-code origin refs/heads/${newBranch}`.quiet();
+    // Verify the branch was checked out
+    const currentBranch = await $`git branch --show-current`;
+    const branchName = currentBranch.text().trim();
+    console.log(`Current branch: ${branchName}`);
 
-      // If we get here, branch exists (exit code 0)
-      console.log(
-        `Branch '${newBranch}' already exists, falling back to default format`,
+    if (branchName === sourceBranch) {
+      console.log(`✅ Successfully checked out base branch: ${sourceBranch}`);
+    } else {
+      throw new Error(
+        `Branch checkout failed. Expected ${sourceBranch}, got ${branchName}`,
       );
-      newBranch = generateBranchName(
-        undefined, // Force default template
-        branchPrefix,
-        entityType,
-        entityNumber,
-        sourceSHA,
-        firstLabel,
-        title,
-      );
-    } catch {
-      // Branch doesn't exist (non-zero exit code), continue with generated name
     }
 
-    // For commit signing, defer branch creation to the file ops server
-    if (context.inputs.useCommitSigning) {
-      console.log(
-        `Branch name generated: ${newBranch} (will be created by file ops server on first commit)`,
-      );
-
-      // Ensure we're on the source branch
-      console.log(`Fetching and checking out source branch: ${sourceBranch}`);
-      validateBranchName(sourceBranch);
-      execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
-      execGit(["checkout", sourceBranch, "--"]);
-
-      return {
-        baseBranch: sourceBranch,
-        claudeBranch: newBranch,
-        currentBranch: sourceBranch, // Stay on source branch for now
-      };
-    }
-
-    // For non-signing case, create and checkout the branch locally only
     console.log(
-      `Creating local branch ${newBranch} for ${entityType} #${entityNumber} from source branch: ${sourceBranch}...`,
+      `Branch setup completed, ready for Claude to create branches as needed`,
     );
 
-    // Fetch and checkout the source branch first to ensure we branch from the correct base
-    console.log(`Fetching and checking out source branch: ${sourceBranch}`);
-    validateBranchName(sourceBranch);
-    validateBranchName(newBranch);
-    execGit(["fetch", "origin", sourceBranch, "--depth=1"]);
-    execGit(["checkout", sourceBranch, "--"]);
-
-    // Create and checkout the new branch from the source branch
-    execGit(["checkout", "-b", newBranch]);
-
-    console.log(
-      `Successfully created and checked out local branch: ${newBranch}`,
-    );
-
+    // Set outputs for GitHub Actions
+    core.setOutput("BASE_BRANCH", sourceBranch);
     return {
       baseBranch: sourceBranch,
-      claudeBranch: newBranch,
-      currentBranch: newBranch,
+      currentBranch: sourceBranch,
     };
   } catch (error) {
-    console.error("Error in branch setup:", error);
+    console.error("Error setting up branch:", error);
     process.exit(1);
   }
 }

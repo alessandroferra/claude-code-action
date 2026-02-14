@@ -9,15 +9,12 @@ import { appendFileSync } from "fs";
 import { createJobRunLink, createCommentBody } from "./common";
 import {
   isPullRequestReviewCommentEvent,
-  isPullRequestEvent,
   type ParsedGitHubContext,
 } from "../../context";
-import type { Octokit } from "@octokit/rest";
-
-const CLAUDE_APP_BOT_ID = 209825114;
+import type { GiteaApiClient } from "../../api/gitea-client";
 
 export async function createInitialComment(
-  octokit: Octokit,
+  api: GiteaApiClient,
   context: ParsedGitHubContext,
 ) {
   const { owner, repo } = context.repository;
@@ -28,81 +25,53 @@ export async function createInitialComment(
   try {
     let response;
 
-    if (
-      context.inputs.useStickyComment &&
-      context.isPR &&
-      isPullRequestEvent(context)
-    ) {
-      const comments = await octokit.rest.issues.listComments({
-        owner,
-        repo,
-        issue_number: context.entityNumber,
-      });
-      const existingComment = comments.data.find((comment) => {
-        const idMatch = comment.user?.id === CLAUDE_APP_BOT_ID;
-        const botNameMatch =
-          comment.user?.type === "Bot" &&
-          comment.user?.login.toLowerCase().includes("claude");
-        const bodyMatch = comment.body === initialBody;
+    console.log(
+      `Creating comment for ${context.isPR ? "PR" : "issue"} #${context.entityNumber}`,
+    );
+    console.log(`Repository: ${owner}/${repo}`);
 
-        return idMatch || botNameMatch || bodyMatch;
-      });
-      if (existingComment) {
-        response = await octokit.rest.issues.updateComment({
-          owner,
-          repo,
-          comment_id: existingComment.id,
+    // Only use createReplyForReviewComment if it's a PR review comment AND we have a comment_id
+    if (isPullRequestReviewCommentEvent(context)) {
+      console.log(`Creating PR review comment reply`);
+      response = await api.customRequest(
+        "POST",
+        `/api/v1/repos/${owner}/${repo}/pulls/${context.entityNumber}/comments/${context.payload.comment.id}/replies`,
+        {
           body: initialBody,
-        });
-      } else {
-        // Create new comment if no existing one found
-        response = await octokit.rest.issues.createComment({
-          owner,
-          repo,
-          issue_number: context.entityNumber,
-          body: initialBody,
-        });
-      }
-    } else if (isPullRequestReviewCommentEvent(context)) {
-      // Only use createReplyForReviewComment if it's a PR review comment AND we have a comment_id
-      response = await octokit.rest.pulls.createReplyForReviewComment({
-        owner,
-        repo,
-        pull_number: context.entityNumber,
-        comment_id: context.payload.comment.id,
-        body: initialBody,
-      });
+        },
+      );
     } else {
       // For all other cases (issues, issue comments, or missing comment_id)
-      response = await octokit.rest.issues.createComment({
+      console.log(`Creating issue comment via API`);
+      response = await api.createIssueComment(
         owner,
         repo,
-        issue_number: context.entityNumber,
-        body: initialBody,
-      });
+        context.entityNumber,
+        initialBody,
+      );
     }
 
     // Output the comment ID for downstream steps using GITHUB_OUTPUT
     const githubOutput = process.env.GITHUB_OUTPUT!;
     appendFileSync(githubOutput, `claude_comment_id=${response.data.id}\n`);
     console.log(`✅ Created initial comment with ID: ${response.data.id}`);
-    return response.data;
+    return response.data.id;
   } catch (error) {
     console.error("Error in initial comment:", error);
 
     // Always fall back to regular issue comment if anything fails
     try {
-      const response = await octokit.rest.issues.createComment({
+      const response = await api.createIssueComment(
         owner,
         repo,
-        issue_number: context.entityNumber,
-        body: initialBody,
-      });
+        context.entityNumber,
+        initialBody,
+      );
 
       const githubOutput = process.env.GITHUB_OUTPUT!;
       appendFileSync(githubOutput, `claude_comment_id=${response.data.id}\n`);
       console.log(`✅ Created fallback comment with ID: ${response.data.id}`);
-      return response.data;
+      return response.data.id;
     } catch (fallbackError) {
       console.error("Error creating fallback comment:", fallbackError);
       throw fallbackError;

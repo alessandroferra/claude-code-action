@@ -1,22 +1,5 @@
-import { checkHumanActor } from "../../github/validation/actor";
-import { createInitialComment } from "../../github/operations/comments/create-initial";
-import { setupBranch } from "../../github/operations/branch";
-import {
-  configureGitAuth,
-  setupSshSigning,
-} from "../../github/operations/git-config";
-import { prepareMcpConfig } from "../../mcp/install-mcp-server";
-import {
-  fetchGitHubData,
-  extractTriggerTimestamp,
-  extractOriginalTitle,
-  extractOriginalBody,
-} from "../../github/data/fetcher";
-import { createPrompt } from "../../create-prompt";
-import { isEntityContext } from "../../github/context";
-import type { GitHubContext } from "../../github/context";
-import type { Octokits } from "../../github/api/client";
-import { parseAllowedTools } from "../agent/parse-tools";
+import type { Mode } from "../types";
+import { checkContainsTrigger } from "../../github/validation/trigger";
 
 /**
  * Prepares the tag mode execution context.
@@ -38,8 +21,9 @@ export async function prepareTagMode({
     throw new Error("Tag mode requires entity context");
   }
 
-  // Check if actor is human
-  await checkHumanActor(octokit.rest, context);
+  shouldTrigger(context) {
+    return checkContainsTrigger(context);
+  },
 
   // Create initial tracking comment
   const commentData = await createInitialComment(octokit.rest, context);
@@ -100,89 +84,11 @@ export async function prepareTagMode({
     }
   }
 
-  // Create prompt file
-  await createPrompt(
-    commentId,
-    branchInfo.baseBranch,
-    branchInfo.claudeBranch,
-    githubData,
-    context,
-  );
+  getDisallowedTools() {
+    return [];
+  },
 
-  const userClaudeArgs = process.env.CLAUDE_ARGS || "";
-  const userAllowedMCPTools = parseAllowedTools(userClaudeArgs).filter((tool) =>
-    tool.startsWith("mcp__github_"),
-  );
-
-  // Build claude_args for tag mode with required tools
-  // Tag mode REQUIRES these tools to function properly
-  const tagModeTools = [
-    "Edit",
-    "MultiEdit",
-    "Glob",
-    "Grep",
-    "LS",
-    "Read",
-    "Write",
-    "mcp__github_comment__update_claude_comment",
-    "mcp__github_ci__get_ci_status",
-    "mcp__github_ci__get_workflow_run_details",
-    "mcp__github_ci__download_job_log",
-    ...userAllowedMCPTools,
-  ];
-
-  // Add git commands when using git CLI (no API commit signing, or SSH signing)
-  // SSH signing still uses git CLI, just with signing enabled
-  if (!useApiCommitSigning) {
-    tagModeTools.push(
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git push *)",
-      "Bash(git status *)",
-      "Bash(git diff *)",
-      "Bash(git log *)",
-      "Bash(git rm *)",
-    );
-  } else {
-    // When using API commit signing, use MCP file ops tools
-    tagModeTools.push(
-      "mcp__github_file_ops__commit_files",
-      "mcp__github_file_ops__delete_files",
-    );
-  }
-
-  // Get our GitHub MCP servers configuration
-  const ourMcpConfig = await prepareMcpConfig({
-    githubToken,
-    owner: context.repository.owner,
-    repo: context.repository.repo,
-    branch: branchInfo.claudeBranch || branchInfo.currentBranch,
-    baseBranch: branchInfo.baseBranch,
-    claudeCommentId: commentId.toString(),
-    allowedTools: Array.from(new Set(tagModeTools)),
-    mode: "tag",
-    context,
-  });
-
-  // Build complete claude_args with multiple --mcp-config flags
-  let claudeArgs = "";
-
-  // Add our GitHub servers config
-  const escapedOurConfig = ourMcpConfig.replace(/'/g, "'\\''");
-  claudeArgs = `--mcp-config '${escapedOurConfig}'`;
-
-  // Add required tools for tag mode
-  claudeArgs += ` --allowedTools "${tagModeTools.join(",")}"`;
-
-  // Append user's claude_args (which may have more --mcp-config flags)
-  if (userClaudeArgs) {
-    claudeArgs += ` ${userClaudeArgs}`;
-  }
-
-  return {
-    commentId,
-    branchInfo,
-    mcpConfig: ourMcpConfig,
-    claudeArgs: claudeArgs.trim(),
-  };
-}
+  shouldCreateTrackingComment() {
+    return true;
+  },
+};

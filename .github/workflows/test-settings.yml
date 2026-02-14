@@ -17,13 +17,15 @@ jobs:
         with:
           prompt: |
             Use Bash to echo "Hello from settings test"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY && secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_CREDENTIALS }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CREDENTIALS }}
           settings: |
             {
               "permissions": {
                 "allow": ["Bash(echo:*)"]
               }
             }
+          timeout_minutes: "2"
 
       - name: Verify echo worked
         run: |
@@ -65,14 +67,16 @@ jobs:
         uses: ./base-action
         with:
           prompt: |
-            Run the command `echo $HOME` to check the home directory path
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+            Use Bash to echo "This should not work"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY && secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_CREDENTIALS }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CREDENTIALS }}
           settings: |
             {
               "permissions": {
                 "deny": ["Bash(echo:*)"]
               }
             }
+          timeout_minutes: "2"
 
       - name: Verify echo was denied
         run: |
@@ -108,8 +112,10 @@ jobs:
         with:
           prompt: |
             Use Bash to echo "Hello from settings file test"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY && secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_CREDENTIALS }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CREDENTIALS }}
           settings: "test-settings.json"
+          timeout_minutes: "2"
 
       - name: Verify echo worked
         run: |
@@ -161,9 +167,11 @@ jobs:
         uses: ./base-action
         with:
           prompt: |
-            Run the command `echo $HOME` to check the home directory path
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+            Use Bash to echo "This should not work from file"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY && secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_CREDENTIALS }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CREDENTIALS }}
           settings: "test-settings.json"
+          timeout_minutes: "2"
 
       - name: Verify echo was denied
         run: |

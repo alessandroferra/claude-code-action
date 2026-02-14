@@ -5,60 +5,53 @@
  * Prevents automated tools or bots from triggering Claude
  */
 
-import type { Octokit } from "@octokit/rest";
-import type { GitHubContext } from "../context";
+import type { GiteaApiClient } from "../api/gitea-client";
+import type { ParsedGitHubContext } from "../context";
 
 export async function checkHumanActor(
-  octokit: Octokit,
-  githubContext: GitHubContext,
+  api: GiteaApiClient,
+  githubContext: ParsedGitHubContext,
 ) {
-  // Fetch user information from GitHub API
-  const { data: userData } = await octokit.users.getByUsername({
-    username: githubContext.actor,
-  });
+  // Check if we're in a Gitea environment
+  const isGitea =
+    process.env.GITEA_API_URL &&
+    !process.env.GITEA_API_URL.includes("api.github.com");
 
-  const actorType = userData.type;
-
-  console.log(`Actor type: ${actorType}`);
-
-  // Check bot permissions if actor is not a User
-  if (actorType !== "User") {
-    const allowedBots = githubContext.inputs.allowedBots;
-
-    // Check if all bots are allowed
-    if (allowedBots.trim() === "*") {
-      console.log(
-        `All bots are allowed, skipping human actor check for: ${githubContext.actor}`,
-      );
-      return;
-    }
-
-    // Parse allowed bots list
-    const allowedBotsList = allowedBots
-      .split(",")
-      .map((bot) =>
-        bot
-          .trim()
-          .toLowerCase()
-          .replace(/\[bot\]$/, ""),
-      )
-      .filter((bot) => bot.length > 0);
-
-    const botName = githubContext.actor.toLowerCase().replace(/\[bot\]$/, "");
-
-    // Check if specific bot is allowed
-    if (allowedBotsList.includes(botName)) {
-      console.log(
-        `Bot ${botName} is in allowed list, skipping human actor check`,
-      );
-      return;
-    }
-
-    // Bot not allowed
-    throw new Error(
-      `Workflow initiated by non-human actor: ${botName} (type: ${actorType}). Add bot to allowed_bots list or use '*' to allow all bots.`,
+  if (isGitea) {
+    console.log(
+      `Detected Gitea environment, skipping actor type validation for: ${githubContext.actor}`,
     );
+    return;
   }
 
-  console.log(`Verified human actor: ${githubContext.actor}`);
+  try {
+    // Fetch user information from GitHub API
+    const response = await api.customRequest(
+      "GET",
+      `/api/v1/users/${githubContext.actor}`,
+    );
+    const userData = response.data;
+
+    const actorType = userData.type;
+
+    console.log(`Actor type: ${actorType}`);
+
+    if (actorType !== "User") {
+      throw new Error(
+        `Workflow initiated by non-human actor: ${githubContext.actor} (type: ${actorType}).`,
+      );
+    }
+
+    console.log(`Verified human actor: ${githubContext.actor}`);
+  } catch (error) {
+    console.warn(
+      `Failed to check actor type for ${githubContext.actor}:`,
+      error,
+    );
+
+    // For compatibility, assume human actor if API call fails
+    console.log(
+      `Assuming human actor due to API failure: ${githubContext.actor}`,
+    );
+  }
 }

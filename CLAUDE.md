@@ -1,44 +1,75 @@
 # CLAUDE.md
 
-## Commands
+This file provides guidance to Claude Code when working with code in this repository.
+
+## Development Tools
+
+- Runtime: Bun 1.2.11
+
+## Common Development Tasks
+
+### Available npm/bun scripts from package.json:
 
 ```bash
-bun test                # Run tests
-bun run typecheck       # TypeScript type checking
-bun run format          # Format with prettier
-bun run format:check    # Check formatting
+# Test
+bun test
+
+# Formatting
+bun run format          # Format code with prettier
+bun run format:check    # Check code formatting
 ```
 
 ## What This Is
 
-A GitHub Action that lets Claude respond to `@claude` mentions on issues/PRs (tag mode) or run tasks via `prompt` input (agent mode). Mode is auto-detected: if `prompt` is provided, it's agent mode; if triggered by a comment/issue event with `@claude`, it's tag mode. See `src/modes/detector.ts`.
+This is a GitHub Action that enables Claude to interact with GitHub PRs and issues. The action:
 
-## How It Runs
+1. **Trigger Detection**: Uses `check-trigger.ts` to determine if Claude should respond based on comment/issue content
+2. **Context Gathering**: Fetches GitHub data (PRs, issues, comments) via `github-data-fetcher.ts` and formats it using `github-data-formatter.ts`
+3. **AI Integration**: Supports multiple Claude providers (Anthropic API, AWS Bedrock, Google Vertex AI)
+4. **Prompt Creation**: Generates context-rich prompts using `create-prompt.ts`
+5. **MCP Server Integration**: Installs and configures GitHub MCP server for extended functionality
 
-Single entrypoint: `src/entrypoints/run.ts` orchestrates everything — prepare (auth, permissions, trigger check, branch/comment creation), install Claude Code CLI, execute Claude via `base-action/` functions (imported directly, not subprocess), then cleanup (update tracking comment, write step summary). SSH signing cleanup and token revocation are separate `always()` steps in `action.yml`.
+### Key Components
 
-`base-action/` is also published standalone as `@anthropic-ai/claude-code-base-action`. Don't break its public API. It reads config from `INPUT_`-prefixed env vars (set by `action.yml`), not from action inputs directly.
+- **Trigger System**: Responds to `/claude` comments or issue assignments
+- **Authentication**: OIDC-based token exchange for secure GitHub interactions
+- **Cloud Integration**: Supports direct Anthropic API, AWS Bedrock, and Google Vertex AI
+- **GitHub Operations**: Creates branches, posts comments, and manages PRs/issues
 
-## Key Concepts
+### Project Structure
 
-**Auth priority**: `github_token` input (user-provided) > GitHub App OIDC token (default). The `claude_code_oauth_token` and `anthropic_api_key` are for the Claude API, not GitHub. Token setup lives in `src/github/token.ts`.
+```
+src/
+├── check-trigger.ts        # Determines if Claude should respond
+├── create-prompt.ts        # Generates contextual prompts
+├── github-data-fetcher.ts  # Retrieves GitHub data
+├── github-data-formatter.ts # Formats GitHub data for prompts
+├── install-mcp-server.ts  # Sets up GitHub MCP server
+├── update-comment-with-link.ts # Updates comments with job links
+└── types/
+    └── github.ts          # TypeScript types for GitHub data
+```
 
-**Mode lifecycle**: `detectMode()` in `src/modes/detector.ts` picks the mode name ("tag" or "agent"). Trigger checking and prepare dispatch are inlined in `run.ts`: tag mode calls `prepareTagMode()` from `src/modes/tag/`, agent mode calls `prepareAgentMode()` from `src/modes/agent/`.
+## Important Notes
 
-**Prompt construction**: Tag mode's `prepareTagMode()` builds the prompt by fetching GitHub data (`src/github/data/fetcher.ts`), formatting it as markdown (`src/github/data/formatter.ts`), and writing it to a temp file via `createPrompt()`. Agent mode writes the user's prompt directly. The prompt includes issue/PR body, comments, diff, and CI status. This is the most important part of the action — it's what Claude sees.
+- Actions are triggered by `@claude` comments or issue assignment unless a different trigger_phrase is specified
+- The action creates branches for issues and pushes to PR branches directly
+- All actions create OIDC tokens for secure authentication
+- Progress is tracked through dynamic comment updates with checkboxes
 
-## Things That Will Bite You
+## MCP Tool Development
 
-- **Strict TypeScript**: `noUnusedLocals` and `noUnusedParameters` are enabled. Typecheck will fail on unused variables.
-- **Discriminated unions for GitHub context**: `GitHubContext` is a union type — call `isEntityContext(context)` before accessing entity-specific fields like `context.issue` or `context.pullRequest`.
-- **Token lifecycle matters**: The GitHub App token is obtained early and revoked in a separate `always()` step in `action.yml`. If you move token revocation into `run.ts`, it won't run if the process crashes. Same for SSH signing cleanup.
-- **Error phase attribution**: The catch block in `run.ts` uses `prepareCompleted` to distinguish prepare failures from execution failures. The tracking comment shows different messages for each.
-- **`action.yml` outputs reference step IDs**: Outputs like `execution_file`, `branch_name`, `github_token` reference `steps.run.outputs.*`. If you rename the step ID, update the outputs section too.
-- **Integration testing** happens in a separate repo (`install-test`), not here. The tests in this repo are unit tests.
+When adding new MCP tools:
 
-## Code Conventions
+1. **Add to MCP Server**: Implement the tool in the appropriate MCP server file (e.g., `src/mcp/local-git-ops-server.ts`)
+2. **Expose to Claude**: Add the tool name to `BASE_ALLOWED_TOOLS` array in `src/create-prompt/index.ts`
+3. **Tool Naming**: Follow the pattern `mcp__server_name__tool_name` (e.g., `mcp__local_git_ops__checkout_branch`)
+4. **Documentation**: Update the prompt's "What You CAN Do" section if the tool adds new capabilities
 
-- Runtime is Bun, not Node. Use `bun test`, not `jest`.
-- `moduleResolution: "bundler"` — imports don't need `.js` extensions.
-- GitHub API calls should use retry logic (`src/utils/retry.ts`).
-- MCP servers are auto-installed at runtime to `~/.claude/mcp/github-{type}-server/`.
+## Feature Development Reminders
+
+When implementing new features that add action inputs, configuration options, or capabilities:
+
+1. Always update README.md to document new inputs in the inputs table
+2. Update example workflows to show how new inputs can be used
+3. Add appropriate defaults and descriptions to action.yml

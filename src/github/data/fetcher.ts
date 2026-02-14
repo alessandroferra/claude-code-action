@@ -1,169 +1,14 @@
-import { execFileSync } from "child_process";
-import type { Octokits } from "../api/client";
-import { ISSUE_QUERY, PR_QUERY, USER_QUERY } from "../api/queries/github";
-import {
-  isIssueCommentEvent,
-  isIssuesEvent,
-  isPullRequestEvent,
-  isPullRequestReviewEvent,
-  isPullRequestReviewCommentEvent,
-  type ParsedGitHubContext,
-} from "../context";
+import { execSync } from "child_process";
 import type {
+  GitHubPullRequest,
+  GitHubIssue,
   GitHubComment,
   GitHubFile,
-  GitHubIssue,
-  GitHubPullRequest,
   GitHubReview,
-  IssueQueryResponse,
-  PullRequestQueryResponse,
 } from "../types";
-import type { CommentWithImages } from "../utils/image-downloader";
+import type { GitHubClient } from "../api/client";
 import { downloadCommentImages } from "../utils/image-downloader";
-import {
-  parseActorFilter,
-  shouldIncludeCommentByActor,
-} from "../utils/actor-filter";
-
-/**
- * Extracts the trigger timestamp from the GitHub webhook payload.
- * This timestamp represents when the triggering comment/review/event was created.
- *
- * @param context - Parsed GitHub context from webhook
- * @returns ISO timestamp string or undefined if not available
- */
-export function extractTriggerTimestamp(
-  context: ParsedGitHubContext,
-): string | undefined {
-  if (isIssueCommentEvent(context)) {
-    return context.payload.comment.created_at || undefined;
-  } else if (isPullRequestReviewEvent(context)) {
-    return context.payload.review.submitted_at || undefined;
-  } else if (isPullRequestReviewCommentEvent(context)) {
-    return context.payload.comment.created_at || undefined;
-  }
-
-  return undefined;
-}
-
-/**
- * Extracts the original title from the GitHub webhook payload.
- * This is the title as it existed when the trigger event occurred.
- *
- * @param context - Parsed GitHub context from webhook
- * @returns The original title string or undefined if not available
- */
-export function extractOriginalTitle(
-  context: ParsedGitHubContext,
-): string | undefined {
-  if (isIssueCommentEvent(context)) {
-    return context.payload.issue?.title;
-  } else if (isPullRequestEvent(context)) {
-    return context.payload.pull_request?.title;
-  } else if (isPullRequestReviewEvent(context)) {
-    return context.payload.pull_request?.title;
-  } else if (isPullRequestReviewCommentEvent(context)) {
-    return context.payload.pull_request?.title;
-  } else if (isIssuesEvent(context)) {
-    return context.payload.issue?.title;
-  }
-
-  return undefined;
-}
-
-/**
- * Extracts the original body from the GitHub webhook payload.
- * This is the body as it existed when the trigger event occurred,
- * preventing TOCTOU attacks where an attacker edits the body after
- * the trigger but before the action reads it.
- *
- * @param context - Parsed GitHub context from webhook
- * @returns The original body string, null (no body), or undefined (not available)
- */
-export function extractOriginalBody(
-  context: ParsedGitHubContext,
-): string | null | undefined {
-  if (isIssueCommentEvent(context)) {
-    return context.payload.issue?.body;
-  } else if (isPullRequestEvent(context)) {
-    return context.payload.pull_request?.body;
-  } else if (isPullRequestReviewEvent(context)) {
-    return context.payload.pull_request?.body;
-  } else if (isPullRequestReviewCommentEvent(context)) {
-    return context.payload.pull_request?.body;
-  } else if (isIssuesEvent(context)) {
-    return context.payload.issue?.body;
-  }
-
-  return undefined;
-}
-
-/**
- * Filters comments to only include those that existed in their final state before the trigger time.
- * This prevents malicious actors from editing comments after the trigger to inject harmful content.
- *
- * @param comments - Array of GitHub comments to filter
- * @param triggerTime - ISO timestamp of when the trigger comment was created
- * @returns Filtered array of comments that were created and last edited before trigger time
- */
-export function filterCommentsToTriggerTime<
-  T extends { createdAt: string; updatedAt?: string; lastEditedAt?: string },
->(comments: T[], triggerTime: string | undefined): T[] {
-  if (!triggerTime) return comments;
-
-  const triggerTimestamp = new Date(triggerTime).getTime();
-
-  return comments.filter((comment) => {
-    // Comment must have been created before trigger (not at or after)
-    const createdTimestamp = new Date(comment.createdAt).getTime();
-    if (createdTimestamp >= triggerTimestamp) {
-      return false;
-    }
-
-    // If comment has been edited, the most recent edit must have occurred before trigger
-    // Use lastEditedAt if available, otherwise fall back to updatedAt
-    const lastEditTime = comment.lastEditedAt || comment.updatedAt;
-    if (lastEditTime) {
-      const lastEditTimestamp = new Date(lastEditTime).getTime();
-      if (lastEditTimestamp >= triggerTimestamp) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-}
-
-/**
- * Filters reviews to only include those that existed in their final state before the trigger time.
- * Similar to filterCommentsToTriggerTime but for GitHubReview objects which use submittedAt instead of createdAt.
- */
-export function filterReviewsToTriggerTime<
-  T extends { submittedAt: string; updatedAt?: string; lastEditedAt?: string },
->(reviews: T[], triggerTime: string | undefined): T[] {
-  if (!triggerTime) return reviews;
-
-  const triggerTimestamp = new Date(triggerTime).getTime();
-
-  return reviews.filter((review) => {
-    // Review must have been submitted before trigger (not at or after)
-    const submittedTimestamp = new Date(review.submittedAt).getTime();
-    if (submittedTimestamp >= triggerTimestamp) {
-      return false;
-    }
-
-    // If review has been edited, the most recent edit must have occurred before trigger
-    const lastEditTime = review.lastEditedAt || review.updatedAt;
-    if (lastEditTime) {
-      const lastEditTimestamp = new Date(lastEditTime).getTime();
-      if (lastEditTimestamp >= triggerTimestamp) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-}
+import type { CommentWithImages } from "../utils/image-downloader";
 
 /**
  * Checks if the issue/PR body was edited after the trigger time.
@@ -227,16 +72,10 @@ export function filterCommentsByActor<T extends { author: { login: string } }>(
 }
 
 type FetchDataParams = {
-  octokits: Octokits;
+  client: GitHubClient;
   repository: string;
   prNumber: string;
   isPR: boolean;
-  triggerUsername?: string;
-  triggerTime?: string;
-  originalTitle?: string;
-  originalBody?: string | null;
-  includeCommentsByActor?: string;
-  excludeCommentsByActor?: string;
 };
 
 export type GitHubFileWithSHA = GitHubFile & {
@@ -250,20 +89,13 @@ export type FetchDataResult = {
   changedFilesWithSHA: GitHubFileWithSHA[];
   reviewData: { nodes: GitHubReview[] } | null;
   imageUrlMap: Map<string, string>;
-  triggerDisplayName?: string | null;
 };
 
 export async function fetchGitHubData({
-  octokits,
+  client,
   repository,
   prNumber,
   isPR,
-  triggerUsername,
-  triggerTime,
-  originalTitle,
-  originalBody,
-  includeCommentsByActor,
-  excludeCommentsByActor,
 }: FetchDataParams): Promise<FetchDataResult> {
   const [owner, repo] = repository.split("/");
   if (!owner || !repo) {
@@ -276,60 +108,104 @@ export async function fetchGitHubData({
   let reviewData: { nodes: GitHubReview[] } | null = null;
 
   try {
+    // Use REST API for all requests (works with both GitHub and Gitea)
     if (isPR) {
-      // Fetch PR data with all comments and file information
-      const prResult = await octokits.graphql<PullRequestQueryResponse>(
-        PR_QUERY,
-        {
-          owner,
-          repo,
-          number: parseInt(prNumber),
-        },
+      console.log(`Fetching PR #${prNumber} data using REST API`);
+      const prResponse = await client.api.getPullRequest(
+        owner,
+        repo,
+        parseInt(prNumber),
       );
 
-      if (prResult.repository.pullRequest) {
-        const pullRequest = prResult.repository.pullRequest;
-        contextData = pullRequest;
-        changedFiles = pullRequest.files.nodes || [];
-        comments = filterCommentsByActor(
-          filterCommentsToTriggerTime(
-            pullRequest.comments?.nodes || [],
-            triggerTime,
-          ),
-          includeCommentsByActor,
-          excludeCommentsByActor,
-        );
-        reviewData = pullRequest.reviews || [];
+      contextData = {
+        title: prResponse.data.title,
+        body: prResponse.data.body || "",
+        author: { login: prResponse.data.user?.login || "" },
+        baseRefName: prResponse.data.base.ref,
+        headRefName: prResponse.data.head.ref,
+        headRefOid: prResponse.data.head.sha,
+        createdAt: prResponse.data.created_at,
+        additions: prResponse.data.additions || 0,
+        deletions: prResponse.data.deletions || 0,
+        state: prResponse.data.state.toUpperCase(),
+        commits: { totalCount: 0, nodes: [] },
+        files: { nodes: [] },
+        comments: { nodes: [] },
+        reviews: { nodes: [] },
+      };
 
-        console.log(`Successfully fetched PR #${prNumber} data`);
-      } else {
-        throw new Error(`PR #${prNumber} not found`);
+      // Fetch comments separately
+      try {
+        const commentsResponse = await client.api.listIssueComments(
+          owner,
+          repo,
+          parseInt(prNumber),
+        );
+        comments = commentsResponse.data.map((comment: any) => ({
+          id: comment.id.toString(),
+          databaseId: comment.id.toString(),
+          body: comment.body || "",
+          author: { login: comment.user?.login || "" },
+          createdAt: comment.created_at,
+        }));
+      } catch (error) {
+        console.warn("Failed to fetch PR comments:", error);
+        comments = []; // Ensure we have an empty array
       }
-    } else {
-      // Fetch issue data
-      const issueResult = await octokits.graphql<IssueQueryResponse>(
-        ISSUE_QUERY,
-        {
+
+      // Try to fetch files
+      try {
+        const filesResponse = await client.api.listPullRequestFiles(
           owner,
           repo,
-          number: parseInt(prNumber),
-        },
+          parseInt(prNumber),
+        );
+        changedFiles = filesResponse.data.map((file: any) => ({
+          path: file.filename,
+          additions: file.additions || 0,
+          deletions: file.deletions || 0,
+          changeType: file.status || "modified",
+        }));
+      } catch (error) {
+        console.warn("Failed to fetch PR files:", error);
+        changedFiles = []; // Ensure we have an empty array
+      }
+
+      reviewData = { nodes: [] }; // Simplified for Gitea
+    } else {
+      console.log(`Fetching issue #${prNumber} data using REST API`);
+      const issueResponse = await client.api.getIssue(
+        owner,
+        repo,
+        parseInt(prNumber),
       );
 
-      if (issueResult.repository.issue) {
-        contextData = issueResult.repository.issue;
-        comments = filterCommentsByActor(
-          filterCommentsToTriggerTime(
-            contextData?.comments?.nodes || [],
-            triggerTime,
-          ),
-          includeCommentsByActor,
-          excludeCommentsByActor,
-        );
+      contextData = {
+        title: issueResponse.data.title,
+        body: issueResponse.data.body || "",
+        author: { login: issueResponse.data.user?.login || "" },
+        createdAt: issueResponse.data.created_at,
+        state: issueResponse.data.state.toUpperCase(),
+        comments: { nodes: [] },
+      };
 
-        console.log(`Successfully fetched issue #${prNumber} data`);
-      } else {
-        throw new Error(`Issue #${prNumber} not found`);
+      // Fetch comments
+      try {
+        const commentsResponse = await client.api.listIssueComments(
+          owner,
+          repo,
+          parseInt(prNumber),
+        );
+        comments = commentsResponse.data.map((comment: any) => ({
+          id: comment.id.toString(),
+          databaseId: comment.id.toString(),
+          body: comment.body || "",
+          author: { login: comment.user?.login || "" },
+          createdAt: comment.created_at,
+        }));
+      } catch (error) {
+        console.warn("Failed to fetch issue comments:", error);
+        comments = []; // Ensure we have an empty array
       }
     }
   } catch (error) {
@@ -341,17 +217,9 @@ export async function fetchGitHubData({
   let changedFilesWithSHA: GitHubFileWithSHA[] = [];
   if (isPR && changedFiles.length > 0) {
     changedFilesWithSHA = changedFiles.map((file) => {
-      // Don't compute SHA for deleted files
-      if (file.changeType === "DELETED") {
-        return {
-          ...file,
-          sha: "deleted",
-        };
-      }
-
       try {
         // Use git hash-object to compute the SHA for the current file content
-        const sha = execFileSync("git", ["hash-object", file.path], {
+        const sha = execSync(`git hash-object "${file.path}"`, {
           encoding: "utf-8",
         }).trim();
         return {
@@ -371,62 +239,32 @@ export async function fetchGitHubData({
 
   // Prepare all comments for image processing
   const issueComments: CommentWithImages[] = comments
-    .filter((c) => c.body && !c.isMinimized)
+    .filter((c) => c.body)
     .map((c) => ({
       type: "issue_comment" as const,
       id: c.databaseId,
       body: c.body,
     }));
 
-  // Filter review bodies to trigger time
-  const filteredReviewBodies = reviewData?.nodes
-    ? filterReviewsToTriggerTime(reviewData.nodes, triggerTime).filter(
-        (r) => r.body,
-      )
-    : [];
+  const reviewBodies: CommentWithImages[] =
+    reviewData?.nodes
+      ?.filter((r) => r.body)
+      .map((r) => ({
+        type: "review_body" as const,
+        id: r.databaseId,
+        pullNumber: prNumber,
+        body: r.body,
+      })) ?? [];
 
-  const reviewBodies: CommentWithImages[] = filteredReviewBodies.map((r) => ({
-    type: "review_body" as const,
-    id: r.databaseId,
-    pullNumber: prNumber,
-    body: r.body,
-  }));
-
-  // Filter review comments to trigger time and by actor
-  if (reviewData && reviewData.nodes) {
-    // Filter reviews by actor
-    reviewData.nodes = filterCommentsByActor(
-      reviewData.nodes,
-      includeCommentsByActor,
-      excludeCommentsByActor,
-    );
-
-    // Also filter inline review comments within each review
-    reviewData.nodes.forEach((review) => {
-      if (review.comments?.nodes) {
-        review.comments.nodes = filterCommentsByActor(
-          review.comments.nodes,
-          includeCommentsByActor,
-          excludeCommentsByActor,
-        );
-      }
-    });
-  }
-
-  const allReviewComments =
-    reviewData?.nodes?.flatMap((r) => r.comments?.nodes ?? []) ?? [];
-  const filteredReviewComments = filterCommentsToTriggerTime(
-    allReviewComments,
-    triggerTime,
-  );
-
-  const reviewComments: CommentWithImages[] = filteredReviewComments
-    .filter((c) => c.body && !c.isMinimized)
-    .map((c) => ({
-      type: "review_comment" as const,
-      id: c.databaseId,
-      body: c.body,
-    }));
+  const reviewComments: CommentWithImages[] =
+    reviewData?.nodes
+      ?.flatMap((r) => r.comments?.nodes ?? [])
+      .filter((c) => c.body)
+      .map((c) => ({
+        type: "review_comment" as const,
+        id: c.databaseId,
+        body: c.body,
+      })) ?? [];
 
   // Use the original body from the webhook payload if provided (TOCTOU protection).
   // The webhook payload captures the body at event time, before any attacker edits.
@@ -474,22 +312,11 @@ export async function fetchGitHubData({
   ];
 
   const imageUrlMap = await downloadCommentImages(
-    octokits,
+    client,
     owner,
     repo,
     allComments,
   );
-
-  // Fetch trigger user display name if username is provided
-  let triggerDisplayName: string | null | undefined;
-  if (triggerUsername) {
-    triggerDisplayName = await fetchUserDisplayName(octokits, triggerUsername);
-  }
-
-  // Use the original title from the webhook payload if provided
-  if (originalTitle !== undefined) {
-    contextData.title = originalTitle;
-  }
 
   return {
     contextData,
@@ -498,27 +325,5 @@ export async function fetchGitHubData({
     changedFilesWithSHA,
     reviewData,
     imageUrlMap,
-    triggerDisplayName,
   };
-}
-
-export type UserQueryResponse = {
-  user: {
-    name: string | null;
-  };
-};
-
-export async function fetchUserDisplayName(
-  octokits: Octokits,
-  login: string,
-): Promise<string | null> {
-  try {
-    const result = await octokits.graphql<UserQueryResponse>(USER_QUERY, {
-      login,
-    });
-    return result.user.name;
-  } catch (error) {
-    console.warn(`Failed to fetch user display name for ${login}:`, error);
-    return null;
-  }
 }
