@@ -22,12 +22,17 @@ import { getMode } from "../modes/registry";
 
 async function run() {
   try {
+    console.log("=== Claude Action Prepare Starting ===");
+    console.log("Event name:", process.env.GITHUB_EVENT_NAME);
+    console.log("Repository:", process.env.GITHUB_REPOSITORY);
+
     // Step 1: Setup GitHub token
     const githubToken = await setupGitHubToken();
     const client = createClient(githubToken);
 
     // Step 2: Parse GitHub context (once for all operations)
     const context = parseGitHubContext();
+    console.log("Parsed context - Event:", context.eventName, "Actor:", context.actor);
 
     // Step 3: Check write permissions
     const hasWritePermissions = await checkWritePermissions(
@@ -41,16 +46,22 @@ async function run() {
     }
 
     // Step 4: Check trigger conditions
+    console.log("Checking trigger with phrase:", context.inputs.triggerPhrase);
     const containsTrigger = await checkTriggerAction(context);
+    console.log("Trigger check result:", containsTrigger);
 
     // Set outputs that are always needed
     core.setOutput("contains_trigger", containsTrigger.toString());
     core.setOutput("GITHUB_TOKEN", githubToken);
 
     if (!containsTrigger) {
-      console.log("No trigger found, skipping remaining steps");
+      console.log("❌ No trigger found, skipping remaining steps");
+      console.log("Event was:", context.eventName);
+      console.log("Mode:", context.inputs.mode);
       return;
     }
+
+    console.log("✅ Trigger detected, proceeding with Claude execution");
 
     // Step 5: Check if actor is human
     await checkHumanActor(client.api, context);
@@ -70,6 +81,8 @@ async function run() {
       repository: `${context.repository.owner}/${context.repository.repo}`,
       prNumber: context.entityNumber.toString(),
       isPR: context.isPR,
+      includeCommentsByActor: context.inputs.includeCommentsByActor || "",
+      excludeCommentsByActor: context.inputs.excludeCommentsByActor || "",
     });
 
     // Step 8: Setup branch

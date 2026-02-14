@@ -102,18 +102,18 @@ export class GiteaApiClient {
 
   // Repository operations
   async getRepo(owner: string, repo: string) {
-    return this.request("GET", `/api/v1/repos/${owner}/${repo}`);
+    return this.request("GET", `/repos/${owner}/${repo}`);
   }
 
   // Simple test endpoint to verify API connectivity
   async testConnection() {
-    return this.request("GET", "/api/v1/version");
+    return this.request("GET", "/version");
   }
 
   async getBranch(owner: string, repo: string, branch: string) {
     return this.request(
       "GET",
-      `/api/v1/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`,
+      `/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`,
     );
   }
 
@@ -123,28 +123,28 @@ export class GiteaApiClient {
     newBranch: string,
     fromBranch: string,
   ) {
-    return this.request("POST", `/api/v1/repos/${owner}/${repo}/branches`, {
+    return this.request("POST", `/repos/${owner}/${repo}/branches`, {
       new_branch_name: newBranch,
       old_branch_name: fromBranch,
     });
   }
 
   async listBranches(owner: string, repo: string) {
-    return this.request("GET", `/api/v1/repos/${owner}/${repo}/branches`);
+    return this.request("GET", `/repos/${owner}/${repo}/branches`);
   }
 
   // Issue operations
   async getIssue(owner: string, repo: string, issueNumber: number) {
     return this.request(
       "GET",
-      `/api/v1/repos/${owner}/${repo}/issues/${issueNumber}`,
+      `/repos/${owner}/${repo}/issues/${issueNumber}`,
     );
   }
 
   async listIssueComments(owner: string, repo: string, issueNumber: number) {
     return this.request(
       "GET",
-      `/api/v1/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+      `/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
     );
   }
 
@@ -156,7 +156,7 @@ export class GiteaApiClient {
   ) {
     return this.request(
       "POST",
-      `/api/v1/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+      `/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
       {
         body,
       },
@@ -171,7 +171,7 @@ export class GiteaApiClient {
   ) {
     return this.request(
       "PATCH",
-      `/api/v1/repos/${owner}/${repo}/issues/comments/${commentId}`,
+      `/repos/${owner}/${repo}/issues/comments/${commentId}`,
       {
         body,
       },
@@ -182,21 +182,21 @@ export class GiteaApiClient {
   async getPullRequest(owner: string, repo: string, prNumber: number) {
     return this.request(
       "GET",
-      `/api/v1/repos/${owner}/${repo}/pulls/${prNumber}`,
+      `/repos/${owner}/${repo}/pulls/${prNumber}`,
     );
   }
 
   async listPullRequestFiles(owner: string, repo: string, prNumber: number) {
     return this.request(
       "GET",
-      `/api/v1/repos/${owner}/${repo}/pulls/${prNumber}/files`,
+      `/repos/${owner}/${repo}/pulls/${prNumber}/files`,
     );
   }
 
   async listPullRequestComments(owner: string, repo: string, prNumber: number) {
     return this.request(
       "GET",
-      `/api/v1/repos/${owner}/${repo}/pulls/${prNumber}/comments`,
+      `/repos/${owner}/${repo}/pulls/${prNumber}/comments`,
     );
   }
 
@@ -208,7 +208,7 @@ export class GiteaApiClient {
   ) {
     return this.request(
       "POST",
-      `/api/v1/repos/${owner}/${repo}/pulls/${prNumber}/comments`,
+      `/repos/${owner}/${repo}/pulls/${prNumber}/comments`,
       {
         body,
       },
@@ -222,7 +222,7 @@ export class GiteaApiClient {
     path: string,
     ref?: string,
   ) {
-    let endpoint = `/api/v1/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
+    let endpoint = `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
     if (ref) {
       endpoint += `?ref=${encodeURIComponent(ref)}`;
     }
@@ -248,7 +248,7 @@ export class GiteaApiClient {
 
     return this.request(
       "POST",
-      `/api/v1/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
+      `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
       body,
     );
   }
@@ -274,7 +274,7 @@ export class GiteaApiClient {
 
     return this.request(
       "PUT",
-      `/api/v1/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
+      `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
       body,
     );
   }
@@ -298,7 +298,7 @@ export class GiteaApiClient {
 
     return this.request(
       "DELETE",
-      `/api/v1/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
+      `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
       body,
     );
   }

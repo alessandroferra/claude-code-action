@@ -3,8 +3,9 @@
 import * as core from "@actions/core";
 
 export async function setupGitHubToken(): Promise<string> {
-  // Check if GitHub token was provided as override
-  const providedToken = process.env.OVERRIDE_GITHUB_TOKEN;
+  try {
+    // Check if GitHub token was provided as override
+    const providedToken = process.env.OVERRIDE_GITHUB_TOKEN;
 
     if (providedToken) {
       console.log("Using provided GITHUB_TOKEN for authentication");
@@ -30,19 +31,4 @@ export async function setupGitHubToken(): Promise<string> {
     );
     process.exit(1);
   }
-
-  console.log("Requesting OIDC token...");
-  const oidcToken = await retryWithBackoff(() => getOidcToken());
-  console.log("OIDC token successfully obtained");
-
-  const permissions = parseAdditionalPermissions();
-
-  console.log("Exchanging OIDC token for app token...");
-  const appToken = await retryWithBackoff(() =>
-    exchangeForAppToken(oidcToken, permissions),
-  );
-  console.log("App token successfully obtained");
-
-  console.log("Using GITHUB_TOKEN from OIDC");
-  return appToken;
 }

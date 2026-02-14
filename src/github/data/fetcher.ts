@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import type {
   GitHubPullRequest,
   GitHubIssue,
@@ -11,43 +11,63 @@ import { downloadCommentImages } from "../utils/image-downloader";
 import type { CommentWithImages } from "../utils/image-downloader";
 
 /**
- * Checks if the issue/PR body was edited after the trigger time.
- * This prevents a race condition where an attacker could edit the issue/PR body
- * between when an authorized user triggered Claude and when Claude processes the request.
- *
- * @param contextData - The PR or issue data containing body and edit timestamps
- * @param triggerTime - ISO timestamp of when the trigger event occurred
- * @returns true if the body is safe to use, false if it was edited after trigger
+ * Parse actor filter string into array of patterns.
+ * Supports wildcards like "*[bot]" to match all bots.
  */
-export function isBodySafeToUse(
-  contextData: { createdAt: string; updatedAt?: string; lastEditedAt?: string },
-  triggerTime: string | undefined,
+function parseActorFilter(filterString: string): string[] {
+  if (!filterString || filterString.trim() === "") {
+    return [];
+  }
+  return filterString
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * Check if an actor should be included based on include/exclude filters.
+ * Exclusions take priority over inclusions.
+ */
+function shouldIncludeCommentByActor(
+  actorLogin: string,
+  includePatterns: string[],
+  excludePatterns: string[],
 ): boolean {
-  // If no trigger time is available, we can't validate - allow the body
-  // This maintains backwards compatibility for triggers that don't have timestamps
-  if (!triggerTime) return true;
-
-  const triggerTimestamp = new Date(triggerTime).getTime();
-
-  // Check if the body was edited after the trigger
-  // Use lastEditedAt if available (more accurate for body edits), otherwise fall back to updatedAt
-  const lastEditTime = contextData.lastEditedAt || contextData.updatedAt;
-  if (lastEditTime) {
-    const lastEditTimestamp = new Date(lastEditTime).getTime();
-    if (lastEditTimestamp >= triggerTimestamp) {
+  // Check exclusions first (they take priority)
+  for (const pattern of excludePatterns) {
+    if (pattern.includes("*")) {
+      // Wildcard matching
+      const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
+      if (regex.test(actorLogin)) {
+        return false;
+      }
+    } else if (actorLogin === pattern) {
       return false;
     }
   }
 
-  return true;
+  // If no include patterns, include by default
+  if (includePatterns.length === 0) {
+    return true;
+  }
+
+  // Check inclusions
+  for (const pattern of includePatterns) {
+    if (pattern.includes("*")) {
+      const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
+      if (regex.test(actorLogin)) {
+        return true;
+      }
+    } else if (actorLogin === pattern) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
- * Filters comments by actor username based on include/exclude patterns
- * @param comments - Array of comments to filter
- * @param includeActors - Comma-separated actors to include
- * @param excludeActors - Comma-separated actors to exclude
- * @returns Filtered array of comments
+ * Filter comments by actor using include/exclude patterns.
  */
 export function filterCommentsByActor<T extends { author: { login: string } }>(
   comments: T[],
@@ -76,6 +96,8 @@ type FetchDataParams = {
   repository: string;
   prNumber: string;
   isPR: boolean;
+  includeCommentsByActor?: string;
+  excludeCommentsByActor?: string;
 };
 
 export type GitHubFileWithSHA = GitHubFile & {
@@ -96,6 +118,8 @@ export async function fetchGitHubData({
   repository,
   prNumber,
   isPR,
+  includeCommentsByActor = "",
+  excludeCommentsByActor = "",
 }: FetchDataParams): Promise<FetchDataResult> {
   const [owner, repo] = repository.split("/");
   if (!owner || !repo) {
@@ -132,7 +156,7 @@ export async function fetchGitHubData({
         files: { nodes: [] },
         comments: { nodes: [] },
         reviews: { nodes: [] },
-      };
+      } as unknown as GitHubPullRequest;
 
       // Fetch comments separately
       try {
@@ -148,6 +172,13 @@ export async function fetchGitHubData({
           author: { login: comment.user?.login || "" },
           createdAt: comment.created_at,
         }));
+
+        // Apply actor filtering
+        comments = filterCommentsByActor(
+          comments,
+          includeCommentsByActor,
+          excludeCommentsByActor,
+        );
       } catch (error) {
         console.warn("Failed to fetch PR comments:", error);
         comments = []; // Ensure we have an empty array
@@ -187,7 +218,7 @@ export async function fetchGitHubData({
         createdAt: issueResponse.data.created_at,
         state: issueResponse.data.state.toUpperCase(),
         comments: { nodes: [] },
-      };
+      } as unknown as GitHubIssue;
 
       // Fetch comments
       try {
@@ -203,6 +234,13 @@ export async function fetchGitHubData({
           author: { login: comment.user?.login || "" },
           createdAt: comment.created_at,
         }));
+
+        // Apply actor filtering
+        comments = filterCommentsByActor(
+          comments,
+          includeCommentsByActor,
+          excludeCommentsByActor,
+        );
       } catch (error) {
         console.warn("Failed to fetch issue comments:", error);
         comments = []; // Ensure we have an empty array
@@ -219,7 +257,7 @@ export async function fetchGitHubData({
     changedFilesWithSHA = changedFiles.map((file) => {
       try {
         // Use git hash-object to compute the SHA for the current file content
-        const sha = execSync(`git hash-object "${file.path}"`, {
+        const sha = execFileSync("git", ["hash-object", "--", file.path], {
           encoding: "utf-8",
         }).trim();
         return {
@@ -266,22 +304,9 @@ export async function fetchGitHubData({
         body: c.body,
       })) ?? [];
 
-  // Use the original body from the webhook payload if provided (TOCTOU protection).
-  // The webhook payload captures the body at event time, before any attacker edits.
-  if (originalBody !== undefined) {
-    contextData.body = originalBody ?? "";
-  }
-
-  // Add the main issue/PR body if it has content and wasn't edited after trigger.
-  // When originalBody is provided, the body is already safe (from webhook payload).
-  // Otherwise, fall back to timestamp-based validation.
-  let mainBody: CommentWithImages[] = [];
-  if (contextData.body) {
-    if (
-      originalBody !== undefined ||
-      isBodySafeToUse(contextData, triggerTime)
-    ) {
-      mainBody = [
+  // Add the main issue/PR body if it has content
+  const mainBody: CommentWithImages[] = contextData?.body
+    ? [
         {
           ...(isPR
             ? {
@@ -295,14 +320,8 @@ export async function fetchGitHubData({
                 body: contextData.body,
               }),
         },
-      ];
-    } else {
-      console.warn(
-        `Security: ${isPR ? "PR" : "Issue"} #${prNumber} body was edited after the trigger event. ` +
-          `Excluding body content to prevent potential injection attacks.`,
-      );
-    }
-  }
+      ]
+    : [];
 
   const allComments = [
     ...mainBody,
@@ -317,6 +336,10 @@ export async function fetchGitHubData({
     repo,
     allComments,
   );
+
+  if (!contextData) {
+    throw new Error("Failed to fetch context data for PR/issue");
+  }
 
   return {
     contextData,

@@ -83,7 +83,7 @@ This action has been enhanced to work with Gitea installations. The main differe
 
 1. **Local Git Operations**: Instead of using API-based file operations (which have limited support in Gitea), this action uses local git commands to create branches, commit files, and push changes.
 
-2. **API URL Configuration**: You must specify your Gitea server URL using the `gitea_api_url` input.
+2. **Auto-Detection**: The action automatically detects Gitea environments and derives the API URL from the `GITHUB_SERVER_URL` environment variable (set by Gitea Actions).
 
 3. **Custom Server URL**: For Gitea instances running in containers, you can override link generation using the `GITEA_SERVER_URL` environment variable.
 

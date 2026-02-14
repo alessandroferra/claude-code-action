@@ -20,6 +20,7 @@ import {
 import type { ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import type { Mode, ModeContext } from "../modes/types";
+import { getServerUrl } from "../github/api/config";
 export type { CommonFields, PreparedContext } from "./types";
 
 const BASE_ALLOWED_TOOLS = [
@@ -61,6 +62,7 @@ const BASE_ALLOWED_TOOLS = [
   "mcp__gitea__delete_file",
 ];
 const DISALLOWED_TOOLS = ["WebSearch", "WebFetch"];
+const USER_REQUEST_FILENAME = "claude-user-request.txt";
 
 const ACTIONS_ALLOWED_TOOLS = [
   "mcp__github_actions__get_ci_status",
@@ -462,7 +464,7 @@ function substitutePromptVariables(
     CHANGED_FILES: eventData.isPR
       ? formatChangedFilesWithSHA(changedFilesWithSHA)
       : "",
-    TRIGGER_COMMENT: "commentBody" in eventData ? eventData.commentBody : "",
+    TRIGGER_COMMENT: "commentBody" in eventData ? (eventData.commentBody || "") : "",
     TRIGGER_USERNAME: context.triggerUsername || "",
     BRANCH_NAME:
       "claudeBranch" in eventData && eventData.claudeBranch
@@ -767,7 +769,7 @@ ${
 - Display the todo list as a checklist in the Gitea comment and mark things off as you go.
 - REPOSITORY SETUP INSTRUCTIONS: The repository's CLAUDE.md file(s) contain critical repo-specific setup instructions, development guidelines, and preferences. Always read and follow these files, particularly the root CLAUDE.md, as they provide essential context for working with the codebase effectively.
 - Use h3 headers (###) for section titles in your comments, not h1 headers (#).
-- Your comment must always include the job run link in the format "[View job run](${GITHUB_SERVER_URL}/${context.repository}/actions/runs/${process.env.GITHUB_RUN_ID})" at the bottom of your response (branch link if there is one should also be included there).
+- Your comment must always include the job run link in the format "[View job run](${getServerUrl()}/${context.repository}/actions/runs/${process.env.GITHUB_RUN_ID})" at the bottom of your response (branch link if there is one should also be included there).
 
 CAPABILITIES AND LIMITATIONS:
 When users ask you to do something, be aware of what you can and cannot do. This section helps you understand how to respond when users request actions outside your scope.
@@ -813,6 +815,20 @@ f. If you are unable to complete certain steps, such as running a linter or test
   }
 
   return promptContent;
+}
+
+/**
+ * Extracts the user's request text that comes after the trigger phrase.
+ * @param text - The full text containing the trigger phrase
+ * @param triggerPhrase - The trigger phrase to look for (e.g., "@claude")
+ * @returns The text after the trigger phrase, or the full text if trigger not found
+ */
+function extractUserRequest(text: string, triggerPhrase: string): string {
+  const triggerIndex = text.indexOf(triggerPhrase);
+  if (triggerIndex === -1) {
+    return text.trim();
+  }
+  return text.substring(triggerIndex + triggerPhrase.length).trim();
 }
 
 /**
@@ -865,9 +881,8 @@ function extractUserRequestFromContext(
 }
 
 export async function createPrompt(
-  commentId: number,
-  baseBranch: string | undefined,
-  claudeBranch: string | undefined,
+  mode: Mode,
+  modeContext: ModeContext,
   githubData: FetchDataResult,
   context: ParsedGitHubContext,
 ) {

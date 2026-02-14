@@ -29,7 +29,7 @@ jobs:
           track_progress: true
 
           # Your custom review instructions
-          prompt: |
+          direct_prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 

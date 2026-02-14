@@ -101,6 +101,9 @@ inputs:
   gitea_token:
     description: "Gitea token with repo and pull request permissions (defaults to GITHUB_TOKEN)"
     required: false
+  github_token:
+    description: "GitHub token with repo and pull request permissions (optional if using GitHub App)"
+    required: false
   path_to_claude_code_executable:
     description: "Path to a custom Claude Code executable to use instead of installing"
     required: false
@@ -138,7 +141,7 @@ inputs:
 outputs:
   execution_file:
     description: "Path to the Claude Code execution output file"
-    value: ${{ steps.run.outputs.execution_file }}
+    value: ${{ steps.claude-code.outputs.execution_file }}
   branch_name:
     description: "The branch created by Claude Code for this execution"
     value: ${{ steps.prepare.outputs.CLAUDE_BRANCH }}
@@ -159,7 +162,7 @@ runs:
         bun install
 
     - name: Run Claude Code Action
-      id: run
+      id: prepare
       shell: bash
       run: |
         bun run ${{ github.action_path }}/src/entrypoints/prepare.ts
@@ -177,10 +180,11 @@ runs:
         DIRECT_PROMPT: ${{ inputs.direct_prompt }}
         OVERRIDE_PROMPT: ${{ inputs.override_prompt }}
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
+        INCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.include_comments_by_actor }}
+        EXCLUDE_COMMENTS_BY_ACTOR: ${{ inputs.exclude_comments_by_actor }}
         OVERRIDE_GITHUB_TOKEN: ${{ inputs.gitea_token }}
         GITHUB_TOKEN: ${{ github.token }}
         GITHUB_RUN_ID: ${{ github.run_id }}
-        GITEA_API_URL: ${{ env.GITHUB_SERVER_URL }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
 
     - name: Install Claude
@@ -246,7 +250,6 @@ runs:
 
         # GitHub token for repository access
         GITHUB_TOKEN: ${{ steps.prepare.outputs.GITHUB_TOKEN }}
-        GITEA_API_URL: ${{ env.GITHUB_SERVER_URL }}
 
         # Git configuration
         CLAUDE_GIT_NAME: ${{ inputs.claude_git_name }}
@@ -288,8 +291,6 @@ runs:
         TRIGGER_USERNAME: ${{ github.event.comment.user.login || github.event.issue.user.login || github.event.pull_request.user.login || github.event.sender.login || github.triggering_actor || github.actor || '' }}
         PREPARE_SUCCESS: ${{ steps.prepare.outcome == 'success' }}
         PREPARE_ERROR: ${{ steps.prepare.outputs.prepare_error || '' }}
-        GITEA_API_URL: ${{ env.GITHUB_SERVER_URL }}
-
         # Telemetry configuration
         CLAUDE_CODE_ENABLE_TELEMETRY: ${{ env.CLAUDE_CODE_ENABLE_TELEMETRY }}
         OTEL_METRICS_EXPORTER: ${{ env.OTEL_METRICS_EXPORTER }}
@@ -301,15 +302,3 @@ runs:
         OTEL_LOGS_EXPORT_INTERVAL: ${{ env.OTEL_LOGS_EXPORT_INTERVAL }}
         OTEL_RESOURCE_ATTRIBUTES: ${{ env.OTEL_RESOURCE_ATTRIBUTES }}
 
-    - name: Cleanup SSH signing key
-      if: always() && inputs.ssh_signing_key != ''
-      shell: bash
-      run: |
-        if [ -f "${{ steps.claude-code.outputs.execution_file }}" ]; then
-          echo "## Claude Code Report" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          cat "${{ steps.claude-code.outputs.execution_file }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-        else
-          echo "⚠️ Claude Code execution completed but no report file was generated" >> $GITHUB_STEP_SUMMARY
-        fi

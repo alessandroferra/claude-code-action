@@ -39,25 +39,62 @@ const baseContext: ParsedGitHubContext = {
 
 describe("checkWritePermissions", () => {
   let infoSpy: any;
-  const originalEnv = { ...process.env };
 
   beforeEach(() => {
     infoSpy = spyOn(core, "info").mockImplementation(() => {});
-    process.env.GITEA_API_URL = "https://gitea.example.com/api/v1";
   });
 
   afterEach(() => {
     infoSpy.mockRestore();
-    process.env = { ...originalEnv };
   });
 
-  test("returns true immediately in Gitea environments", async () => {
-    const client = { api: { getBaseUrl: () => "https://gitea.example.com/api/v1" } } as any;
-    const result = await checkWritePermissions(client, baseContext);
+  test("returns true when token has push permission", async () => {
+    const mockApi = {
+      getRepo: async () => ({ data: { permissions: { admin: false, push: true, pull: true } } }),
+    } as any;
 
+    const result = await checkWritePermissions(mockApi, baseContext);
     expect(result).toBe(true);
-    expect(infoSpy).toHaveBeenCalledWith(
-      "Detected Gitea environment (https://gitea.example.com/api/v1), assuming actor has permissions",
+  });
+
+  test("returns true when token has admin permission", async () => {
+    const mockApi = {
+      getRepo: async () => ({ data: { permissions: { admin: true, push: false, pull: true } } }),
+    } as any;
+
+    const result = await checkWritePermissions(mockApi, baseContext);
+    expect(result).toBe(true);
+  });
+
+  test("returns false when token lacks write access", async () => {
+    const warnSpy = spyOn(core, "warning").mockImplementation(() => {});
+    const mockApi = {
+      getRepo: async () => ({ data: { permissions: { admin: false, push: false, pull: true } } }),
+    } as any;
+
+    const result = await checkWritePermissions(mockApi, baseContext);
+    expect(result).toBe(false);
+    warnSpy.mockRestore();
+  });
+
+  test("returns true when permissions field is missing (Gitea workflow token)", async () => {
+    const mockApi = {
+      getRepo: async () => ({ data: { full_name: "owner/repo" } }),
+    } as any;
+
+    const result = await checkWritePermissions(mockApi, baseContext);
+    expect(result).toBe(true);
+  });
+
+  test("throws when API call fails", async () => {
+    const errorSpy = spyOn(core, "error").mockImplementation(() => {});
+    const mockApi = {
+      getRepo: async () => { throw new Error("connection refused"); },
+    } as any;
+
+    expect(checkWritePermissions(mockApi, baseContext)).rejects.toThrow(
+      "Failed to check permissions for tester",
     );
+    errorSpy.mockRestore();
   });
 });

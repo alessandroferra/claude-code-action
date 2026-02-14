@@ -43,6 +43,8 @@ export type ParsedGitHubContext = {
     useStickyComment: boolean;
     additionalPermissions: Map<string, string>;
     useCommitSigning: boolean;
+    includeCommentsByActor?: string;
+    excludeCommentsByActor?: string;
   };
 };
 
@@ -82,6 +84,8 @@ export function parseGitHubContext(): ParsedGitHubContext {
         process.env.ADDITIONAL_PERMISSIONS ?? "",
       ),
       useCommitSigning: process.env.USE_COMMIT_SIGNING === "true",
+      includeCommentsByActor: process.env.INCLUDE_COMMENTS_BY_ACTOR ?? "",
+      excludeCommentsByActor: process.env.EXCLUDE_COMMENTS_BY_ACTOR ?? "",
     },
   };
 

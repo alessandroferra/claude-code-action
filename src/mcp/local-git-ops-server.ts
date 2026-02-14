@@ -3,7 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 
 // Get repository information from environment variables
 const REPO_OWNER = process.env.REPO_OWNER;
@@ -11,7 +11,10 @@ const REPO_NAME = process.env.REPO_NAME;
 const BRANCH_NAME = process.env.BRANCH_NAME;
 const REPO_DIR = process.env.REPO_DIR || process.cwd();
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITEA_API_URL = process.env.GITEA_API_URL || "https://api.github.com";
+const GITEA_API_URL = process.env.GITEA_API_URL;
+if (!GITEA_API_URL) {
+  throw new Error("GITEA_API_URL environment variable is required for local git operations");
+}
 
 console.log(`[LOCAL-GIT-MCP] Starting Local Git Operations MCP Server`);
 console.log(`[LOCAL-GIT-MCP] REPO_OWNER: ${REPO_OWNER}`);
@@ -35,12 +38,12 @@ const server = new McpServer({
   version: "0.0.1",
 });
 
-// Helper function to run git commands
-function runGitCommand(command: string): string {
+// Helper function to run git commands safely (using execFileSync to prevent command injection)
+function runGitCommand(args: string[]): string {
   try {
-    console.log(`[LOCAL-GIT-MCP] Running git command: ${command}`);
+    console.log(`[LOCAL-GIT-MCP] Running git command: git ${args.join(" ")}`);
     console.log(`[LOCAL-GIT-MCP] Working directory: ${REPO_DIR}`);
-    const result = execSync(command, {
+    const result = execFileSync("git", args, {
       cwd: REPO_DIR,
       encoding: "utf8",
       stdio: ["inherit", "pipe", "pipe"],
@@ -48,7 +51,7 @@ function runGitCommand(command: string): string {
     console.log(`[LOCAL-GIT-MCP] Git command result: ${result.trim()}`);
     return result.trim();
   } catch (error: any) {
-    console.error(`[LOCAL-GIT-MCP] Git command failed: ${command}`);
+    console.error(`[LOCAL-GIT-MCP] Git command failed: git ${args.join(" ")}`);
     console.error(`[LOCAL-GIT-MCP] Error: ${error.message}`);
     if (error.stdout) console.error(`[LOCAL-GIT-MCP] Stdout: ${error.stdout}`);
     if (error.stderr) console.error(`[LOCAL-GIT-MCP] Stderr: ${error.stderr}`);
@@ -63,24 +66,24 @@ function ensureGitUserConfigured(): void {
 
   try {
     // Check if user.email is already configured
-    runGitCommand("git config user.email");
+    runGitCommand(["config", "user.email"]);
     console.log(`[LOCAL-GIT-MCP] Git user.email already configured`);
   } catch (error) {
     console.log(
       `[LOCAL-GIT-MCP] Git user.email not configured, setting to: ${gitEmail}`,
     );
-    runGitCommand(`git config user.email "${gitEmail}"`);
+    runGitCommand(["config", "user.email", gitEmail]);
   }
 
   try {
     // Check if user.name is already configured
-    runGitCommand("git config user.name");
+    runGitCommand(["config", "user.name"]);
     console.log(`[LOCAL-GIT-MCP] Git user.name already configured`);
   } catch (error) {
     console.log(
       `[LOCAL-GIT-MCP] Git user.name not configured, setting to: ${gitName}`,
     );
-    runGitCommand(`git config user.name "${gitName}"`);
+    runGitCommand(["config", "user.name", gitName]);
   }
 }
 
@@ -96,12 +99,23 @@ server.tool(
   },
   async ({ branch_name, base_branch }) => {
     try {
+      // Validate base branch name: no leading dash
+      if (!/^[a-zA-Z0-9_\/][a-zA-Z0-9_\/-]*$/.test(base_branch)) {
+        throw new Error(`Invalid base branch name: ${base_branch}`);
+      }
+
       // Ensure we're on the base branch and it's up to date
-      runGitCommand(`git checkout ${base_branch}`);
-      runGitCommand(`git pull origin ${base_branch}`);
+      runGitCommand(["checkout", base_branch]);
+      runGitCommand(["pull", "origin", base_branch]);
+
+      // Validate branch name (alphanumeric, dash, underscore, slash only)
+      // Validate branch name: no leading dash, alphanumeric + _/- only
+      if (!/^[a-zA-Z0-9_\/][a-zA-Z0-9_\/-]*$/.test(branch_name)) {
+        throw new Error(`Invalid branch name: ${branch_name}`);
+      }
 
       // Create and checkout the new branch
-      runGitCommand(`git checkout -b ${branch_name}`);
+      runGitCommand(["checkout", "-b", branch_name]);
 
       return {
         content: [
@@ -149,10 +163,16 @@ server.tool(
   },
   async ({ branch_name, create_if_missing = false, fetch_remote = true }) => {
     try {
+      // Validate branch name
+      // Validate branch name: no leading dash, alphanumeric + _/- only
+      if (!/^[a-zA-Z0-9_\/][a-zA-Z0-9_\/-]*$/.test(branch_name)) {
+        throw new Error(`Invalid branch name: ${branch_name}`);
+      }
+
       // Check if branch exists locally
       let branchExists = false;
       try {
-        runGitCommand(`git rev-parse --verify ${branch_name}`);
+        runGitCommand(["rev-parse", "--verify", branch_name]);
         branchExists = true;
       } catch (error) {
         console.log(
@@ -166,7 +186,7 @@ server.tool(
           console.log(
             `[LOCAL-GIT-MCP] Attempting to fetch ${branch_name} from remote`,
           );
-          runGitCommand(`git fetch origin ${branch_name}:${branch_name}`);
+          runGitCommand(["fetch", "origin", `${branch_name}:${branch_name}`]);
           branchExists = true;
         } catch (error) {
           console.log(
@@ -178,7 +198,7 @@ server.tool(
       // If branch still doesn't exist and create_if_missing is true, create it
       if (!branchExists && create_if_missing) {
         console.log(`[LOCAL-GIT-MCP] Creating new branch ${branch_name}`);
-        runGitCommand(`git checkout -b ${branch_name}`);
+        runGitCommand(["checkout", "-b", branch_name]);
         return {
           content: [
             {
@@ -197,7 +217,7 @@ server.tool(
       }
 
       // Checkout the existing branch
-      runGitCommand(`git checkout ${branch_name}`);
+      runGitCommand(["checkout", branch_name]);
 
       return {
         content: [
@@ -249,12 +269,12 @@ server.tool(
       for (const file of files) {
         const filePath = file.startsWith("/") ? file.slice(1) : file;
         console.log(`[LOCAL-GIT-MCP] Adding file: ${filePath}`);
-        runGitCommand(`git add "${filePath}"`);
+        runGitCommand(["add", "--", filePath]);
       }
 
       // Commit the changes
       console.log(`[LOCAL-GIT-MCP] Committing with message: ${message}`);
-      runGitCommand(`git commit -m "${message}"`);
+      runGitCommand(["commit", "-m", message]);
 
       console.log(
         `[LOCAL-GIT-MCP] Successfully committed ${files.length} files`,
@@ -295,14 +315,14 @@ server.tool(
   async ({ force = false }) => {
     try {
       // Get current branch name
-      const currentBranch = runGitCommand("git rev-parse --abbrev-ref HEAD");
+      const currentBranch = runGitCommand(["rev-parse", "--abbrev-ref", "HEAD"]);
 
       // Push the branch
-      const pushCommand = force
-        ? `git push -f origin ${currentBranch}`
-        : `git push origin ${currentBranch}`;
-
-      runGitCommand(pushCommand);
+      if (force) {
+        runGitCommand(["push", "-f", "origin", currentBranch]);
+      } else {
+        runGitCommand(["push", "origin", currentBranch]);
+      }
 
       return {
         content: [
@@ -352,7 +372,7 @@ server.tool(
 
       // Get current branch if head_branch not specified
       const currentBranch =
-        head_branch || runGitCommand("git rev-parse --abbrev-ref HEAD");
+        head_branch || runGitCommand(["rev-parse", "--abbrev-ref", "HEAD"]);
 
       // Create PR using Gitea API
       const response = await fetch(
@@ -421,11 +441,11 @@ server.tool(
       // Remove the specified files
       for (const file of files) {
         const filePath = file.startsWith("/") ? file.slice(1) : file;
-        runGitCommand(`git rm "${filePath}"`);
+        runGitCommand(["rm", "--", filePath]);
       }
 
       // Commit the deletions
-      runGitCommand(`git commit -m "${message}"`);
+      runGitCommand(["commit", "-m", message]);
 
       return {
         content: [
@@ -456,8 +476,8 @@ server.tool(
 server.tool("git_status", "Get the current git status", {}, async () => {
   console.log(`[LOCAL-GIT-MCP] git_status called`);
   try {
-    const status = runGitCommand("git status --porcelain");
-    const currentBranch = runGitCommand("git rev-parse --abbrev-ref HEAD");
+    const status = runGitCommand(["status", "--porcelain"]);
+    const currentBranch = runGitCommand(["rev-parse", "--abbrev-ref", "HEAD"]);
 
     console.log(`[LOCAL-GIT-MCP] Current branch: ${currentBranch}`);
     console.log(

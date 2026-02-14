@@ -35,7 +35,7 @@ export async function createInitialComment(
       console.log(`Creating PR review comment reply`);
       response = await api.customRequest(
         "POST",
-        `/api/v1/repos/${owner}/${repo}/pulls/${context.entityNumber}/comments/${context.payload.comment.id}/replies`,
+        `/repos/${owner}/${repo}/pulls/${context.entityNumber}/comments/${context.payload.comment.id}/replies`,
         {
           body: initialBody,
         },

@@ -1,5 +1,6 @@
 import * as core from "@actions/core";
 import type { ParsedGitHubContext } from "../github/context";
+import { GITEA_API_URL } from "../github/api/config";
 
 export type PrepareMcpConfigOptions = {
   githubToken: string;
@@ -48,8 +49,7 @@ export async function prepareMcpConfig({
             REPO_NAME: repo,
             BRANCH_NAME: branch,
             REPO_DIR: process.env.GITHUB_WORKSPACE || process.cwd(),
-            GITEA_API_URL:
-              process.env.GITEA_API_URL || "https://api.github.com",
+            GITEA_API_URL,
           },
         },
         local_git_ops: {
@@ -64,8 +64,7 @@ export async function prepareMcpConfig({
             REPO_NAME: repo,
             BRANCH_NAME: branch,
             REPO_DIR: process.env.GITHUB_WORKSPACE || process.cwd(),
-            GITEA_API_URL:
-              process.env.GITEA_API_URL || "https://api.github.com",
+            GITEA_API_URL,
           },
         },
       },

@@ -10,7 +10,10 @@ const REPO_OWNER = process.env.REPO_OWNER;
 const REPO_NAME = process.env.REPO_NAME;
 const BRANCH_NAME = process.env.BRANCH_NAME;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITEA_API_URL = process.env.GITEA_API_URL || "https://api.github.com";
+const GITEA_API_URL = process.env.GITEA_API_URL;
+if (!GITEA_API_URL) {
+  throw new Error("GITEA_API_URL environment variable is required for Gitea MCP server");
+}
 
 console.log(`[GITEA-MCP] Starting Gitea API Operations MCP Server`);
 console.log(`[GITEA-MCP] REPO_OWNER: ${REPO_OWNER}`);
@@ -78,7 +81,7 @@ server.tool(
   async ({ issue_number }) => {
     try {
       const issue = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issue_number}`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issue_number}`,
       );
 
       return {
@@ -126,7 +129,7 @@ server.tool(
   },
   async ({ issue_number, since, before }) => {
     try {
-      let endpoint = `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issue_number}/comments`;
+      let endpoint = `/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issue_number}/comments`;
       const params = new URLSearchParams();
 
       if (since) params.append("since", since);
@@ -177,7 +180,7 @@ server.tool(
   async ({ issue_number, body }) => {
     try {
       const comment = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issue_number}/comments`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issue_number}/comments`,
         "POST",
         { body },
       );
@@ -221,7 +224,7 @@ server.tool(
   async ({ owner, repo, commentId, body }) => {
     try {
       const comment = await giteaRequest(
-        `/api/v1/repos/${owner}/${repo}/issues/comments/${commentId}`,
+        `/repos/${owner}/${repo}/issues/comments/${commentId}`,
         "PATCH",
         { body },
       );
@@ -264,7 +267,7 @@ server.tool(
   async ({ comment_id }) => {
     try {
       await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues/comments/${comment_id}`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/issues/comments/${comment_id}`,
         "DELETE",
       );
 
@@ -306,7 +309,7 @@ server.tool(
   async ({ comment_id }) => {
     try {
       const comment = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues/comments/${comment_id}`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/issues/comments/${comment_id}`,
       );
 
       return {
@@ -375,7 +378,7 @@ server.tool(
     limit,
   }) => {
     try {
-      let endpoint = `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues`;
+      let endpoint = `/repos/${REPO_OWNER}/${REPO_NAME}/issues`;
       const params = new URLSearchParams();
 
       if (state) params.append("state", state);
@@ -451,7 +454,7 @@ server.tool(
       if (labels) issueData.labels = labels;
 
       const issue = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/issues`,
         "POST",
         issueData,
       );
@@ -527,7 +530,7 @@ server.tool(
       if (state) updateData.state = state;
 
       const issue = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issue_number}`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issue_number}`,
         "PATCH",
         updateData,
       );
@@ -561,7 +564,7 @@ server.tool(
 // Get repository information
 server.tool("get_repository", "Get repository information", {}, async () => {
   try {
-    const repo = await giteaRequest(`/api/v1/repos/${REPO_OWNER}/${REPO_NAME}`);
+    const repo = await giteaRequest(`/repos/${REPO_OWNER}/${REPO_NAME}`);
 
     return {
       content: [
@@ -603,7 +606,7 @@ server.tool(
   },
   async ({ state, head, base, page, limit }) => {
     try {
-      let endpoint = `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/pulls`;
+      let endpoint = `/repos/${REPO_OWNER}/${REPO_NAME}/pulls`;
       const params = new URLSearchParams();
 
       if (state) params.append("state", state);
@@ -654,7 +657,7 @@ server.tool(
   async ({ pull_number }) => {
     try {
       const pull = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pull_number}`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pull_number}`,
       );
 
       return {
@@ -729,7 +732,7 @@ server.tool(
       if (labels) pullData.labels = labels;
 
       const pull = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/pulls`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/pulls`,
         "POST",
         pullData,
       );
@@ -818,7 +821,7 @@ server.tool(
         updateData.allow_maintainer_edit = allow_maintainer_edit;
 
       const pull = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pull_number}`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pull_number}`,
         "PATCH",
         updateData,
       );
@@ -892,7 +895,7 @@ server.tool(
       if (merge_title) mergeData.MergeTitleField = merge_title;
 
       const result = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pull_number}/merge`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pull_number}/merge`,
         "POST",
         mergeData,
       );
@@ -937,7 +940,7 @@ server.tool(
   },
   async ({ pull_number, style = "merge" }) => {
     try {
-      let endpoint = `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pull_number}/update`;
+      let endpoint = `/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pull_number}/update`;
       if (style) {
         endpoint += `?style=${style}`;
       }
@@ -982,7 +985,7 @@ server.tool(
   async ({ pull_number }) => {
     try {
       await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pull_number}/merge`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pull_number}/merge`,
         "GET",
       );
 
@@ -1039,7 +1042,7 @@ server.tool(
       const updateData = { ref: branch };
 
       const issue = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issue_number}`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issue_number}`,
         "PATCH",
         updateData,
       );
@@ -1080,7 +1083,7 @@ server.tool(
   },
   async ({ page, limit }) => {
     try {
-      let endpoint = `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/branches`;
+      let endpoint = `/repos/${REPO_OWNER}/${REPO_NAME}/branches`;
       const params = new URLSearchParams();
 
       if (page) params.append("page", page.toString());
@@ -1128,7 +1131,7 @@ server.tool(
   async ({ branch_name }) => {
     try {
       const branch = await giteaRequest(
-        `/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/branches/${encodeURIComponent(branch_name)}`,
+        `/repos/${REPO_OWNER}/${REPO_NAME}/branches/${encodeURIComponent(branch_name)}`,
       );
 
       return {
@@ -1170,7 +1173,7 @@ server.tool(
   async ({ owner, repo, commentId, body }) => {
     try {
       const comment = await giteaRequest(
-        `/api/v1/repos/${owner}/${repo}/pulls/comments/${commentId}`,
+        `/repos/${owner}/${repo}/pulls/comments/${commentId}`,
         "PATCH",
         { body },
       );
@@ -1230,7 +1233,7 @@ server.tool(
       }
 
       const result = await giteaRequest(
-        `/api/v1/repos/${owner}/${repo}/contents/${encodeURIComponent(filepath)}`,
+        `/repos/${owner}/${repo}/contents/${encodeURIComponent(filepath)}`,
         "DELETE",
         deleteData,
       );

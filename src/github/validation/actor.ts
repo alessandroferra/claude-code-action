@@ -28,7 +28,7 @@ export async function checkHumanActor(
     // Fetch user information from GitHub API
     const response = await api.customRequest(
       "GET",
-      `/api/v1/users/${githubContext.actor}`,
+      `/users/${githubContext.actor}`,
     );
     const userData = response.data;
 

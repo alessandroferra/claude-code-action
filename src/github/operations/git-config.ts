@@ -6,6 +6,9 @@
  */
 
 import { $ } from "bun";
+import { join } from "path";
+import { homedir } from "os";
+import { mkdir, writeFile, rm } from "fs/promises";
 import type { ParsedGitHubContext } from "../context";
 import { GITEA_SERVER_URL } from "../api/config";
 

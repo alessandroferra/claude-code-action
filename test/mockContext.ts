@@ -25,6 +25,8 @@ const defaultInputs = {
   useStickyComment: false,
   additionalPermissions: new Map<string, string>(),
   useCommitSigning: false,
+  includeCommentsByActor: "",
+  excludeCommentsByActor: "",
 };
 
 const defaultRepository = {

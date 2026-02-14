@@ -40,7 +40,7 @@ export async function updateTrackingComment(
       // For PR review comments (inline comments), use the pulls API
       await client.api.customRequest(
         "PATCH",
-        `/api/v1/repos/${owner}/${repo}/pulls/comments/${commentId}`,
+        `/repos/${owner}/${repo}/pulls/comments/${commentId}`,
         {
           body: updatedBody,
         },

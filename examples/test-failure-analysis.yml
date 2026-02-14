@@ -27,7 +27,7 @@ jobs:
         uses: anthropics/claude-code-action@main
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
+          direct_prompt: |
             The CI workflow failed: ${{ github.event.workflow_run.html_url }}
 
             Check the logs: gh run view ${{ github.event.workflow_run.id }} --log-failed

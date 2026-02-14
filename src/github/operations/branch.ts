@@ -7,20 +7,11 @@
  */
 
 import { $ } from "bun";
-import { execFileSync } from "child_process";
+import * as core from "@actions/core";
 import type { ParsedGitHubContext } from "../context";
 import type { GitHubPullRequest } from "../types";
 import type { GitHubClient } from "../api/client";
 import type { FetchDataResult } from "../data/fetcher";
-import { generateBranchName } from "../../utils/branch-template";
-
-/**
- * Extracts the first label from GitHub data, or returns undefined if no labels exist
- */
-function extractFirstLabel(githubData: FetchDataResult): string | undefined {
-  const labels = githubData.contextData.labels?.nodes;
-  return labels && labels.length > 0 ? labels[0]?.name : undefined;
-}
 
 /**
  * Validates a git branch name against a strict whitelist pattern.
@@ -117,10 +108,6 @@ export function validateBranchName(branchName: string): void {
  *
  * @param args - Git command arguments (e.g., ["checkout", "branch-name"])
  */
-function execGit(args: string[]): void {
-  execFileSync("git", args, { stdio: "inherit" });
-}
-
 export type BranchInfo = {
   baseBranch: string;
   claudeBranch?: string;
@@ -141,12 +128,15 @@ export async function setupBranch(
   let sourceBranch: string;
 
   if (baseBranch) {
-    // Use provided base branch for source
+    // Validate provided base branch
+    validateBranchName(baseBranch);
     sourceBranch = baseBranch;
   } else {
     // No base branch provided, fetch the default branch to use as source
     const repoResponse = await client.api.getRepo(owner, repo);
     sourceBranch = repoResponse.data.default_branch;
+    // Validate default branch from API
+    validateBranchName(sourceBranch);
   }
 
   if (isPR) {
@@ -173,6 +163,7 @@ export async function setupBranch(
       console.log("This is an open PR, checking out PR branch...");
 
       const branchName = prData.headRefName;
+      validateBranchName(branchName);
 
       // Execute git commands to checkout PR branch (shallow fetch for performance)
       // Fetch the branch with a depth of 20 to avoid fetching too much history, while still allowing for some context
