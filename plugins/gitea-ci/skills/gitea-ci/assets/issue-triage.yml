@@ -27,13 +27,20 @@ jobs:
             Analyze the newly opened issue #${{ github.event.issue.number }} in ${{ github.repository }}.
 
             Read the issue title and body, then:
-            1. Categorize the issue (bug, feature request, question, documentation, etc.)
-            2. Apply appropriate labels based on the content
-            3. If it's a bug report, check if critical information is missing
-               (steps to reproduce, expected behavior, actual behavior)
-            4. If information is missing, add a polite comment asking for details
 
-            Available labels to apply: bug, enhancement, question, documentation,
-            good first issue, help wanted, invalid, wontfix
+            1. **Check available labels**: List the repository's labels to see what
+               categories are available for classification.
+
+            2. **Categorize** the issue (bug, feature request, question, documentation,
+               etc.) and apply appropriate labels based on the content and what exists.
+
+            3. **Check for duplicates**: Search existing open and recently closed issues
+               for similar reports. If a likely duplicate exists, add a comment linking
+               to the original issue and apply a "duplicate" label. Be sure it is a
+               true duplicate, not just a similar topic.
+
+            4. **Note missing info**: If it is a bug report and key details are absent
+               (steps to reproduce, expected vs actual behavior, environment), note
+               what appears to be missing in your comment.
         # env:
         #   GITEA_SERVER_URL: https://gitea.example.com

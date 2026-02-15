@@ -28,12 +28,10 @@ Available templates in `assets/`:
 | `assistant` | `claude-assistant.yml` | Interactive @claude trigger (tag mode) |
 | `auto-review` | `auto-review.yml` | Automatic PR review on open/sync |
 | `path-review` | `path-filtered-review.yml` | PR review filtered by file paths |
-| `author-review` | `author-filtered-review.yml` | PR review filtered by author |
-| `ci-fix` | `ci-auto-fix.yml` | Auto-fix CI failures |
-| `test-analysis` | `test-analysis.yml` | Flaky test detection and auto-retry |
-| `issue-triage` | `issue-triage.yml` | Auto-label and categorize issues |
-| `issue-dedup` | `issue-dedup.yml` | Detect duplicate issues |
-| `code-analysis` | `code-analysis.yml` | Manual on-demand commit analysis |
+| `issue-auto-comment` | `issue-auto-comment.yml` | Auto-analyze newly opened/edited issues |
+| `issue-triage` | `issue-triage.yml` | Auto-label, categorize, and detect duplicate issues |
+| `ci-fix` | `ci-analysis.yml` | Analyze CI failures (classify, root cause, suggest fix) |
+| `ci-fix --auto-fix` | `ci-auto-fix.yml` | Same as above but also attempts to push a fix |
 
 ## Step 1: Gather Context
 
@@ -45,8 +43,16 @@ Available templates in `assets/`:
 
 If $ARGUMENTS specifies a workflow type from the table above, use it directly.
 
-Otherwise, use AskUserQuestion to ask which workflow to generate. Present
-the options from the Workflow Types table. Allow the user to pick one.
+Otherwise, use AskUserQuestion in two steps:
+
+**Step 2a — Pick a category:**
+- **Interactive** — assistant (works on PRs and issues)
+- **PR automation** — auto-review, path-review
+- **Issue automation** — issue-auto-comment, issue-triage
+- **CI automation** — ci-fix
+
+**Step 2b — Pick the specific type** within the chosen category.
+If a category has only one type, skip step 2b and use it directly.
 
 ## Step 3: Configure the Workflow
 
@@ -64,13 +70,11 @@ via $ARGUMENTS. Adapt questions to the selected workflow type.
 - `assistant`: trigger phrase (default: `@claude`), execution mode (tag/agent)
 - `auto-review`: review focus areas (security, quality, performance, all)
 - `path-review`: which file path patterns to filter on
-- `author-review`: which author usernames to filter on
-- `ci-fix`: which CI workflow name to monitor (default: "CI"), allowed build
-  tools (bun/npm/yarn/cargo/go)
-- `test-analysis`: which CI workflow name to monitor (default: "CI")
-- `issue-triage`: which labels are available in the repo
-- `issue-dedup`: no extra config needed
-- `code-analysis`: no extra config needed
+- `issue-auto-comment`: no extra config needed
+- `issue-triage`: no extra config needed (Claude checks available labels at runtime)
+- `ci-fix`: which CI workflow name to monitor (default: "CI"),
+  `--auto-fix` to enable code changes (default: analysis-only),
+  `--auto-fix` to enable code changes (default: analysis-only)
 
 Present sensible defaults so the user can accept quickly.
 
@@ -103,9 +107,8 @@ After writing the file, present this checklist:
 
 **Test it**:
 - For `assistant`: Create an issue or PR comment mentioning the trigger phrase
-- For `auto-review` / filtered reviews: Open a pull request
-- For `ci-fix` / `test-analysis`: Wait for a CI failure (or trigger one)
-- For `issue-triage` / `issue-dedup`: Open a new issue
-- For `code-analysis`: Run the workflow manually from the Actions tab
+- For `auto-review` / `path-review`: Open a pull request
+- For `issue-auto-comment` / `issue-triage`: Open a new issue
+- For `ci-fix` (both modes): Wait for a CI failure (or trigger one)
 
 For the full list of action inputs, see [references/action-inputs.md](references/action-inputs.md).

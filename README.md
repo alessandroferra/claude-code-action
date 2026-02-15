@@ -629,12 +629,9 @@ The plugin (`/gitea-ci`) and the [`examples/`](./examples/) directory both offer
 | `assistant` | `gitea-claude.yml` | Interactive @claude trigger for issues and PRs |
 | `auto-review` | `claude-auto-review.yml` | Automatic PR review on open/sync |
 | `path-review` | `pr-review-filtered-paths.yml` | PR review filtered by file paths |
-| `author-review` | `pr-review-filtered-authors.yml` | PR review filtered by author |
-| `ci-fix` | `ci-failure-auto-fix.yml` | Auto-fix CI failures |
-| `test-analysis` | `test-failure-analysis.yml` | Flaky test detection and auto-retry |
-| `issue-triage` | `issue-triage.yml` | Auto-label and categorize new issues |
-| `issue-dedup` | `issue-deduplication.yml` | Detect and flag duplicate issues |
-| `code-analysis` | `manual-code-analysis.yml` | Manual on-demand commit analysis |
+| `issue-auto-comment` | — | Auto-analyze newly opened/edited issues |
+| `issue-triage` | `issue-triage.yml` | Auto-label, categorize, and detect duplicate issues |
+| `ci-fix` | `ci-failure-auto-fix.yml` | Analyze CI failures (analysis-only or auto-fix mode) |
 
 Use `/gitea-ci <type>` to generate a configured version, or copy from `examples/` directly.
 

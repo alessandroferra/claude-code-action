@@ -1,0 +1,44 @@
+name: Claude Issue Auto Comment
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  auto-comment:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Auto-comment on new issue
+        uses: alessandroferra/claude-code-action@gitea
+        with:
+          gitea_token: ${{ secrets.GITEA_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          timeout_minutes: "10"
+          mode: agent
+          # claude_git_name: "Claude"
+          # claude_git_email: "claude@anthropic.com"
+          direct_prompt: |
+            A new issue was just opened: #${{ github.event.issue.number }}
+            Repository: ${{ github.repository }}
+
+            Analyze the issue and provide an initial assessment:
+            - Start with a brief summary of what the issue is about
+            - Identify which area of the codebase is likely involved
+            - Reference specific files, functions, or modules that are relevant
+            - If it's a bug report: analyze potential root causes based on the code
+            - If it's a feature request: outline where in the codebase this would
+              need to change and any architectural considerations
+            - If it's a question: answer it based on the codebase
+            - Note if any key information appears to be missing from the report
+
+            Be concise and analytical. Do not make code changes — only comment.
+        # env:
+        #   GITEA_SERVER_URL: https://gitea.example.com
