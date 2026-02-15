@@ -17,6 +17,18 @@ A Gitea action that provides a general-purpose [Claude Code](https://claude.ai/c
 - 🛠️ **Flexible Tool Access**: Access to Gitea APIs and file operations (additional tools can be enabled via configuration)
 - 📋 **Progress Tracking**: Visual progress indicators with checkboxes that dynamically update as Claude completes tasks
 
+## Quick Start with Claude Code Plugin
+
+If you use [Claude Code](https://claude.ai/code), you can generate workflows interactively:
+
+```bash
+/plugin marketplace add alessandroferra/claude-code-action
+/plugin install gitea-ci@gitea-ci-workflows
+/gitea-ci
+```
+
+This walks you through selecting a workflow type, configuring it for your project, and writing it to `.gitea/workflows/`. See [available workflow types](#available-workflow-types) below.
+
 ## Setup
 
 **Requirements**: You must be a repository admin to complete these steps.
@@ -24,6 +36,7 @@ A Gitea action that provides a general-purpose [Claude Code](https://claude.ai/c
 1. Add `ANTHROPIC_API_KEY` to your repository secrets
 2. Add `GITEA_TOKEN` to your repository secrets (a personal access token with repository read/write permissions)
 3. Copy the workflow file from [`examples/gitea-claude.yml`](./examples/gitea-claude.yml) into your repository's `.gitea/workflows/`
+   — or use the plugin above to generate one automatically
 
 ## Usage
 
@@ -606,6 +619,24 @@ anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 This applies to all sensitive values including API keys, access tokens, and credentials.
+
+## Available Workflow Types
+
+The plugin (`/gitea-ci`) and the [`examples/`](./examples/) directory both offer these workflow types:
+
+| Type | Example File | Description |
+|------|-------------|-------------|
+| `assistant` | `gitea-claude.yml` | Interactive @claude trigger for issues and PRs |
+| `auto-review` | `claude-auto-review.yml` | Automatic PR review on open/sync |
+| `path-review` | `pr-review-filtered-paths.yml` | PR review filtered by file paths |
+| `author-review` | `pr-review-filtered-authors.yml` | PR review filtered by author |
+| `ci-fix` | `ci-failure-auto-fix.yml` | Auto-fix CI failures |
+| `test-analysis` | `test-failure-analysis.yml` | Flaky test detection and auto-retry |
+| `issue-triage` | `issue-triage.yml` | Auto-label and categorize new issues |
+| `issue-dedup` | `issue-deduplication.yml` | Detect and flag duplicate issues |
+| `code-analysis` | `manual-code-analysis.yml` | Manual on-demand commit analysis |
+
+Use `/gitea-ci <type>` to generate a configured version, or copy from `examples/` directly.
 
 ## License
 
