@@ -135,10 +135,7 @@ export class GiteaApiClient {
 
   // Issue operations
   async getIssue(owner: string, repo: string, issueNumber: number) {
-    return this.request(
-      "GET",
-      `/repos/${owner}/${repo}/issues/${issueNumber}`,
-    );
+    return this.request("GET", `/repos/${owner}/${repo}/issues/${issueNumber}`);
   }
 
   async listIssueComments(owner: string, repo: string, issueNumber: number) {
@@ -180,10 +177,7 @@ export class GiteaApiClient {
 
   // Pull request operations
   async getPullRequest(owner: string, repo: string, prNumber: number) {
-    return this.request(
-      "GET",
-      `/repos/${owner}/${repo}/pulls/${prNumber}`,
-    );
+    return this.request("GET", `/repos/${owner}/${repo}/pulls/${prNumber}`);
   }
 
   async listPullRequestFiles(owner: string, repo: string, prNumber: number) {
