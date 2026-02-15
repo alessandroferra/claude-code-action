@@ -23,15 +23,15 @@ Task: Generate a Gitea Actions workflow for $ARGUMENTS
 
 Available templates in `assets/`:
 
-| Type | Template | Description |
-|------|----------|-------------|
-| `assistant` | `claude-assistant.yml` | Interactive @claude trigger (tag mode) |
-| `auto-review` | `auto-review.yml` | Automatic PR review on open/sync |
-| `path-review` | `path-filtered-review.yml` | PR review filtered by file paths |
-| `issue-auto-comment` | `issue-auto-comment.yml` | Auto-analyze newly opened/edited issues |
-| `issue-triage` | `issue-triage.yml` | Auto-label, categorize, and detect duplicate issues |
-| `ci-fix` | `ci-analysis.yml` | Analyze CI failures (classify, root cause, suggest fix) |
-| `ci-fix --auto-fix` | `ci-auto-fix.yml` | Same as above but also attempts to push a fix |
+| Type                 | Template                   | Description                                             |
+| -------------------- | -------------------------- | ------------------------------------------------------- |
+| `assistant`          | `claude-assistant.yml`     | Interactive @claude trigger (tag mode)                  |
+| `auto-review`        | `auto-review.yml`          | Automatic PR review on open/sync                        |
+| `path-review`        | `path-filtered-review.yml` | PR review filtered by file paths                        |
+| `issue-auto-comment` | `issue-auto-comment.yml`   | Auto-analyze newly opened/edited issues                 |
+| `issue-triage`       | `issue-triage.yml`         | Auto-label, categorize, and detect duplicate issues     |
+| `ci-fix`             | `ci-analysis.yml`          | Analyze CI failures (classify, root cause, suggest fix) |
+| `ci-fix --auto-fix`  | `ci-auto-fix.yml`          | Same as above but also attempts to push a fix           |
 
 ## Step 1: Gather Context
 
@@ -46,6 +46,7 @@ If $ARGUMENTS specifies a workflow type from the table above, use it directly.
 Otherwise, use AskUserQuestion in two steps:
 
 **Step 2a — Pick a category:**
+
 - **Interactive** — assistant (works on PRs and issues)
 - **PR automation** — auto-review, path-review
 - **Issue automation** — issue-auto-comment, issue-triage
@@ -60,6 +61,7 @@ Use AskUserQuestion to prompt for configuration that was NOT already provided
 via $ARGUMENTS. Adapt questions to the selected workflow type.
 
 **Common options** (ask for all types):
+
 - Bot identity: custom `claude_git_name` / `claude_git_email` for Claude's
   commits? (default: "Claude" / "claude@anthropic.com")
 - Timeout minutes (default: 60)
@@ -67,6 +69,7 @@ via $ARGUMENTS. Adapt questions to the selected workflow type.
   in a container with an internal URL)
 
 **Type-specific options**:
+
 - `assistant`: trigger phrase (default: `@claude`), execution mode (tag/agent)
 - `auto-review`: review focus areas (security, quality, performance, all)
 - `path-review`: which file path patterns to filter on
@@ -95,18 +98,21 @@ Present sensible defaults so the user can accept quickly.
 After writing the file, present this checklist:
 
 **Required secrets** (Gitea repo Settings > Actions > Secrets):
+
 - `ANTHROPIC_API_KEY` — Anthropic API key, OR
 - `CLAUDE_CODE_OAUTH_TOKEN` — Claude Code OAuth token (alternative auth method)
 
 **Note**: No `GITEA_TOKEN` needed — workflows use `github.token` (auto-provided)
 
 **Optional**:
+
 - `GITEA_SERVER_URL` — Set in the workflow `env:` block if Gitea runs in a
   container and the internal URL differs from the public URL
 - Bot identity — Uncomment `claude_git_name` / `claude_git_email` in the
   workflow to customize how Claude's commits appear
 
 **Test it**:
+
 - For `assistant`: Create an issue or PR comment mentioning the trigger phrase
 - For `auto-review` / `path-review`: Open a pull request
 - For `issue-auto-comment` / `issue-triage`: Open a new issue
