@@ -9,20 +9,19 @@ import {
   isPullRequestReviewCommentEvent,
 } from "../context";
 import type { IssuesLabeledEvent } from "@octokit/webhooks-types";
-import type { ParsedGitHubContext } from "../context";
+import type { GitHubContext } from "../context";
 
-export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
+export function checkContainsTrigger(context: GitHubContext): boolean {
   const {
-    inputs: { assigneeTrigger, triggerPhrase, directPrompt },
+    inputs: { assigneeTrigger, triggerPhrase, directPrompt, overridePrompt },
   } = context;
 
   console.log(
-    `Checking trigger: event=${context.eventName}, action=${context.eventAction}, phrase='${triggerPhrase}', assignee='${assigneeTrigger}', direct='${directPrompt}'`,
+    `Checking trigger: event=${context.eventName}, action=${context.eventAction}, phrase='${triggerPhrase}', assignee='${assigneeTrigger}', direct='${directPrompt}', override='${overridePrompt ? "yes" : "no"}'`,
   );
 
-  // If direct prompt is provided, always trigger
-  if (directPrompt) {
-    console.log(`Direct prompt provided, triggering action`);
+  if (directPrompt || overridePrompt) {
+    console.log(`Direct/override prompt provided, triggering action`);
     return true;
   }
 
@@ -45,8 +44,9 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
   // Check for issue label trigger
   if (isIssuesEvent(context) && context.eventAction === "labeled") {
     const triggerLabel = context.inputs.labelTrigger?.trim();
-    const appliedLabel = (context.payload as IssuesLabeledEvent).label?.name
-      ?.trim();
+    const appliedLabel = (
+      context.payload as IssuesLabeledEvent
+    ).label?.name?.trim();
 
     console.log(
       `Checking label trigger: expected='${triggerLabel}', applied='${appliedLabel}'`,
@@ -55,7 +55,9 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
     if (
       triggerLabel &&
       appliedLabel &&
-      triggerLabel.localeCompare(appliedLabel, undefined, { sensitivity: "accent" }) === 0
+      triggerLabel.localeCompare(appliedLabel, undefined, {
+        sensitivity: "accent",
+      }) === 0
     ) {
       console.log(`Issue labeled with trigger label '${triggerLabel}'`);
       return true;
@@ -115,9 +117,10 @@ export function checkContainsTrigger(context: ParsedGitHubContext): boolean {
 
     // Check if trigger user is in requested reviewers (treat same as mention in text)
     const triggerUser = triggerPhrase.replace(/^@/, "");
-    const requestedReviewers = context.payload.pull_request.requested_reviewers || [];
-    const isReviewerRequested = requestedReviewers.some(reviewer => 
-      'login' in reviewer && reviewer.login === triggerUser
+    const requestedReviewers =
+      context.payload.pull_request.requested_reviewers || [];
+    const isReviewerRequested = requestedReviewers.some(
+      (reviewer) => "login" in reviewer && reviewer.login === triggerUser,
     );
 
     if (isReviewerRequested) {
@@ -173,7 +176,7 @@ export function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export async function checkTriggerAction(context: ParsedGitHubContext) {
+export async function checkTriggerAction(context: GitHubContext) {
   const containsTrigger = checkContainsTrigger(context);
   core.setOutput("contains_trigger", containsTrigger.toString());
   return containsTrigger;
