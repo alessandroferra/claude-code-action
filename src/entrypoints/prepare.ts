@@ -17,7 +17,8 @@ import { prepareMcpConfig } from "../mcp/install-mcp-server";
 import { createPrompt } from "../create-prompt";
 import { createClient } from "../github/api/client";
 import { fetchGitHubData } from "../github/data/fetcher";
-import { parseGitHubContext } from "../github/context";
+import { parseGitHubContext, isEntityContext } from "../github/context";
+import type { ParsedGitHubContext } from "../github/context";
 import { getMode } from "../modes/registry";
 
 async function run() {
@@ -32,7 +33,12 @@ async function run() {
 
     // Step 2: Parse GitHub context (once for all operations)
     const context = parseGitHubContext();
-    console.log("Parsed context - Event:", context.eventName, "Actor:", context.actor);
+    console.log(
+      "Parsed context - Event:",
+      context.eventName,
+      "Actor:",
+      context.actor,
+    );
 
     // Step 3: Check write permissions
     const hasWritePermissions = await checkWritePermissions(
@@ -68,60 +74,98 @@ async function run() {
 
     const mode = getMode(context.inputs.mode);
 
-    // Step 6: Create initial tracking comment (if required by mode)
-    let commentId: number | undefined;
-    if (mode.shouldCreateTrackingComment()) {
-      commentId = await createInitialComment(client.api, context);
-      core.setOutput("claude_comment_id", commentId!.toString());
-    }
+    if (isEntityContext(context)) {
+      // Entity events (issues, PRs, comments): full flow with data fetch + branch setup
+      const entityContext = context as ParsedGitHubContext;
 
-    // Step 7: Fetch GitHub data (once for both branch setup and prompt creation)
-    const githubData = await fetchGitHubData({
-      client: client,
-      repository: `${context.repository.owner}/${context.repository.repo}`,
-      prNumber: context.entityNumber.toString(),
-      isPR: context.isPR,
-      includeCommentsByActor: context.inputs.includeCommentsByActor || "",
-      excludeCommentsByActor: context.inputs.excludeCommentsByActor || "",
-    });
+      // Step 6: Create initial tracking comment (if required by mode)
+      let commentId: number | undefined;
+      if (mode.shouldCreateTrackingComment()) {
+        commentId = await createInitialComment(client.api, entityContext);
+        core.setOutput("claude_comment_id", commentId!.toString());
+      }
 
-    // Step 8: Setup branch
-    const branchInfo = await setupBranch(client, githubData, context);
-    core.setOutput("BASE_BRANCH", branchInfo.baseBranch);
-    if (branchInfo.claudeBranch) {
-      core.setOutput("CLAUDE_BRANCH", branchInfo.claudeBranch);
-    }
+      // Step 7: Fetch GitHub data
+      const githubData = await fetchGitHubData({
+        client: client,
+        repository: `${entityContext.repository.owner}/${entityContext.repository.repo}`,
+        prNumber: entityContext.entityNumber.toString(),
+        isPR: entityContext.isPR,
+        includeCommentsByActor:
+          entityContext.inputs.includeCommentsByActor || "",
+        excludeCommentsByActor:
+          entityContext.inputs.excludeCommentsByActor || "",
+      });
 
-    // Step 9: Update initial comment with branch link (only if a claude branch was created)
-    if (commentId && branchInfo.claudeBranch) {
-      await updateTrackingComment(
-        client,
-        context,
+      // Step 8: Setup branch
+      const branchInfo = await setupBranch(client, githubData, entityContext);
+      core.setOutput("BASE_BRANCH", branchInfo.baseBranch);
+      if (branchInfo.claudeBranch) {
+        core.setOutput("CLAUDE_BRANCH", branchInfo.claudeBranch);
+      }
+
+      // Step 9: Update initial comment with branch link
+      if (commentId && branchInfo.claudeBranch) {
+        await updateTrackingComment(
+          client,
+          entityContext,
+          commentId,
+          branchInfo.claudeBranch,
+        );
+      }
+
+      // Step 10: Create prompt file
+      const modeContext = mode.prepareContext(entityContext, {
         commentId,
-        branchInfo.claudeBranch,
+        baseBranch: branchInfo.baseBranch,
+        claudeBranch: branchInfo.claudeBranch,
+      });
+
+      await createPrompt(mode, modeContext, githubData, entityContext);
+
+      // Step 11: Get MCP configuration
+      const mcpConfig = await prepareMcpConfig({
+        githubToken,
+        owner: entityContext.repository.owner,
+        repo: entityContext.repository.repo,
+        branch: branchInfo.currentBranch,
+        baseBranch: branchInfo.baseBranch,
+        allowedTools: entityContext.inputs.allowedTools,
+        context: entityContext,
+      });
+      core.setOutput("mcp_config", mcpConfig);
+    } else {
+      // Automation events (workflow_run, workflow_dispatch, schedule): headless flow
+      console.log(
+        `Automation event (${context.eventName}), using headless flow`,
       );
+
+      const baseBranch =
+        context.inputs.baseBranch || process.env.GITHUB_REF_NAME || "main";
+      core.setOutput("BASE_BRANCH", baseBranch);
+
+      const modeContext = mode.prepareContext(context, {
+        baseBranch,
+      });
+
+      await createPrompt(mode, modeContext, undefined, context);
+
+      const currentBranch =
+        process.env.GITHUB_HEAD_REF ||
+        process.env.GITHUB_REF_NAME ||
+        baseBranch;
+
+      const mcpConfig = await prepareMcpConfig({
+        githubToken,
+        owner: context.repository.owner,
+        repo: context.repository.repo,
+        branch: currentBranch,
+        baseBranch,
+        allowedTools: context.inputs.allowedTools,
+        context,
+      });
+      core.setOutput("mcp_config", mcpConfig);
     }
-
-    // Step 10: Create prompt file
-    const modeContext = mode.prepareContext(context, {
-      commentId,
-      baseBranch: branchInfo.baseBranch,
-      claudeBranch: branchInfo.claudeBranch,
-    });
-
-    await createPrompt(mode, modeContext, githubData, context);
-
-    // Step 11: Get MCP configuration
-    const mcpConfig = await prepareMcpConfig({
-      githubToken,
-      owner: context.repository.owner,
-      repo: context.repository.repo,
-      branch: branchInfo.currentBranch,
-      baseBranch: branchInfo.baseBranch,
-      allowedTools: context.inputs.allowedTools,
-      context,
-    });
-    core.setOutput("mcp_config", mcpConfig);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     core.setFailed(`Prepare step failed with error: ${errorMessage}`);
