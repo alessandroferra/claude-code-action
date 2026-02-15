@@ -50,7 +50,9 @@ describe("checkWritePermissions", () => {
 
   test("returns true when token has push permission", async () => {
     const mockApi = {
-      getRepo: async () => ({ data: { permissions: { admin: false, push: true, pull: true } } }),
+      getRepo: async () => ({
+        data: { permissions: { admin: false, push: true, pull: true } },
+      }),
     } as any;
 
     const result = await checkWritePermissions(mockApi, baseContext);
@@ -59,7 +61,9 @@ describe("checkWritePermissions", () => {
 
   test("returns true when token has admin permission", async () => {
     const mockApi = {
-      getRepo: async () => ({ data: { permissions: { admin: true, push: false, pull: true } } }),
+      getRepo: async () => ({
+        data: { permissions: { admin: true, push: false, pull: true } },
+      }),
     } as any;
 
     const result = await checkWritePermissions(mockApi, baseContext);
@@ -69,7 +73,9 @@ describe("checkWritePermissions", () => {
   test("returns false when token lacks write access", async () => {
     const warnSpy = spyOn(core, "warning").mockImplementation(() => {});
     const mockApi = {
-      getRepo: async () => ({ data: { permissions: { admin: false, push: false, pull: true } } }),
+      getRepo: async () => ({
+        data: { permissions: { admin: false, push: false, pull: true } },
+      }),
     } as any;
 
     const result = await checkWritePermissions(mockApi, baseContext);
@@ -89,7 +95,9 @@ describe("checkWritePermissions", () => {
   test("throws when API call fails", async () => {
     const errorSpy = spyOn(core, "error").mockImplementation(() => {});
     const mockApi = {
-      getRepo: async () => { throw new Error("connection refused"); },
+      getRepo: async () => {
+        throw new Error("connection refused");
+      },
     } as any;
 
     expect(checkWritePermissions(mockApi, baseContext)).rejects.toThrow(
