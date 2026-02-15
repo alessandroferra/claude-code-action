@@ -397,12 +397,19 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
       };
 
     case "issues":
-      if (eventData.eventAction === "opened" || eventData.eventAction === "edited") {
+      if (
+        eventData.eventAction === "opened" ||
+        eventData.eventAction === "edited"
+      ) {
         return {
-          eventType: eventData.eventAction === "opened" ? "ISSUE_CREATED" : "ISSUE_EDITED",
-          triggerContext: eventData.eventAction === "opened"
-            ? `new issue with '${envVars.triggerPhrase}' in body`
-            : `edited issue with '${envVars.triggerPhrase}' in body`,
+          eventType:
+            eventData.eventAction === "opened"
+              ? "ISSUE_CREATED"
+              : "ISSUE_EDITED",
+          triggerContext:
+            eventData.eventAction === "opened"
+              ? `new issue with '${envVars.triggerPhrase}' in body`
+              : `edited issue with '${envVars.triggerPhrase}' in body`,
         };
       } else if (eventData.eventAction === "labeled") {
         return {
