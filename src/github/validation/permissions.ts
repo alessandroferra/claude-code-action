@@ -1,10 +1,10 @@
 import * as core from "@actions/core";
-import type { ParsedGitHubContext } from "../context";
+import type { GitHubContext } from "../context";
 import type { GiteaApiClient } from "../api/gitea-client";
 
 export async function checkWritePermissions(
   api: GiteaApiClient,
-  context: ParsedGitHubContext,
+  context: GitHubContext,
 ): Promise<boolean> {
   const { repository, actor } = context;
 
@@ -16,12 +16,16 @@ export async function checkWritePermissions(
     // When permissions is missing, the token can still write (Gitea Actions tokens
     // always get full repo access regardless of the workflow permissions: block).
     if (!perms) {
-      core.info(`No permissions field in repo response (Gitea workflow token); assuming write access for ${actor}`);
+      core.info(
+        `No permissions field in repo response (Gitea workflow token); assuming write access for ${actor}`,
+      );
       return true;
     }
 
     if (perms.admin || perms.push) {
-      core.info(`Actor ${actor} has write access (admin=${perms.admin}, push=${perms.push})`);
+      core.info(
+        `Actor ${actor} has write access (admin=${perms.admin}, push=${perms.push})`,
+      );
       return true;
     }
 

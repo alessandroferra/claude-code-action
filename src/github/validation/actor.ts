@@ -6,11 +6,11 @@
  */
 
 import type { GiteaApiClient } from "../api/gitea-client";
-import type { ParsedGitHubContext } from "../context";
+import type { GitHubContext } from "../context";
 
 export async function checkHumanActor(
   api: GiteaApiClient,
-  githubContext: ParsedGitHubContext,
+  githubContext: GitHubContext,
 ) {
   // Check if we're in a Gitea environment
   const isGitea =

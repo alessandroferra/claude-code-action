@@ -81,7 +81,9 @@ export async function createInitialComment(
       );
 
       const commentId = response.data.id;
-      await api.updateIssueComment(owner, repo, commentId, workingBody).catch(() => {});
+      await api
+        .updateIssueComment(owner, repo, commentId, workingBody)
+        .catch(() => {});
 
       const githubOutput = process.env.GITHUB_OUTPUT!;
       appendFileSync(githubOutput, `claude_comment_id=${commentId}\n`);

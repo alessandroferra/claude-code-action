@@ -6,13 +6,32 @@ import type {
   PullRequestEvent,
   PullRequestReviewEvent,
   PullRequestReviewCommentEvent,
+  WorkflowRunEvent,
 } from "@octokit/webhooks-types";
 import type { ModeName } from "../modes/types";
 import { DEFAULT_MODE, isValidMode } from "../modes/registry";
 
-export type ParsedGitHubContext = {
+type CommonInputs = {
+  mode: ModeName;
+  triggerPhrase: string;
+  assigneeTrigger: string;
+  labelTrigger: string;
+  allowedTools: string[];
+  disallowedTools: string[];
+  customInstructions: string;
+  directPrompt: string;
+  overridePrompt: string;
+  baseBranch?: string;
+  branchPrefix: string;
+  useStickyComment: boolean;
+  additionalPermissions: Map<string, string>;
+  useCommitSigning: boolean;
+  includeCommentsByActor?: string;
+  excludeCommentsByActor?: string;
+};
+
+type BaseContext = {
   runId: string;
-  eventName: string;
   eventAction?: string;
   repository: {
     owner: string;
@@ -20,6 +39,11 @@ export type ParsedGitHubContext = {
     full_name: string;
   };
   actor: string;
+  inputs: CommonInputs;
+};
+
+export type ParsedGitHubContext = BaseContext & {
+  eventName: string;
   payload:
     | IssuesEvent
     | IssueCommentEvent
@@ -28,27 +52,24 @@ export type ParsedGitHubContext = {
     | PullRequestReviewCommentEvent;
   entityNumber: number;
   isPR: boolean;
-  inputs: {
-    mode: ModeName;
-    triggerPhrase: string;
-    assigneeTrigger: string;
-    labelTrigger: string;
-    allowedTools: string[];
-    disallowedTools: string[];
-    customInstructions: string;
-    directPrompt: string;
-    overridePrompt: string;
-    baseBranch?: string;
-    branchPrefix: string;
-    useStickyComment: boolean;
-    additionalPermissions: Map<string, string>;
-    useCommitSigning: boolean;
-    includeCommentsByActor?: string;
-    excludeCommentsByActor?: string;
-  };
 };
 
-export function parseGitHubContext(): ParsedGitHubContext {
+const AUTOMATION_EVENT_NAMES = [
+  "workflow_run",
+  "workflow_dispatch",
+  "schedule",
+] as const;
+
+type AutomationEventName = (typeof AUTOMATION_EVENT_NAMES)[number];
+
+export type AutomationContext = BaseContext & {
+  eventName: AutomationEventName;
+  payload: WorkflowRunEvent | Record<string, any>;
+};
+
+export type GitHubContext = ParsedGitHubContext | AutomationContext;
+
+export function parseGitHubContext(): GitHubContext {
   const context = github.context;
 
   const modeInput = process.env.MODE ?? DEFAULT_MODE;
@@ -56,9 +77,8 @@ export function parseGitHubContext(): ParsedGitHubContext {
     throw new Error(`Invalid mode: ${modeInput}.`);
   }
 
-  const commonFields = {
+  const commonFields: BaseContext = {
     runId: process.env.GITHUB_RUN_NUMBER!,
-    eventName: context.eventName,
     eventAction: context.payload.action,
     repository: {
       owner: context.repo.owner,
@@ -93,6 +113,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
     case "issues": {
       return {
         ...commonFields,
+        eventName: context.eventName,
         payload: context.payload as IssuesEvent,
         entityNumber: (context.payload as IssuesEvent).issue.number,
         isPR: false,
@@ -101,6 +122,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
     case "issue_comment": {
       return {
         ...commonFields,
+        eventName: context.eventName,
         payload: context.payload as IssueCommentEvent,
         entityNumber: (context.payload as IssueCommentEvent).issue.number,
         isPR: Boolean(
@@ -111,6 +133,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
     case "pull_request": {
       return {
         ...commonFields,
+        eventName: context.eventName,
         payload: context.payload as PullRequestEvent,
         entityNumber: (context.payload as PullRequestEvent).pull_request.number,
         isPR: true,
@@ -119,6 +142,7 @@ export function parseGitHubContext(): ParsedGitHubContext {
     case "pull_request_review": {
       return {
         ...commonFields,
+        eventName: context.eventName,
         payload: context.payload as PullRequestReviewEvent,
         entityNumber: (context.payload as PullRequestReviewEvent).pull_request
           .number,
@@ -128,10 +152,32 @@ export function parseGitHubContext(): ParsedGitHubContext {
     case "pull_request_review_comment": {
       return {
         ...commonFields,
+        eventName: context.eventName,
         payload: context.payload as PullRequestReviewCommentEvent,
         entityNumber: (context.payload as PullRequestReviewCommentEvent)
           .pull_request.number,
         isPR: true,
+      };
+    }
+    case "workflow_run": {
+      return {
+        ...commonFields,
+        eventName: "workflow_run" as const,
+        payload: context.payload as unknown as WorkflowRunEvent,
+      };
+    }
+    case "workflow_dispatch": {
+      return {
+        ...commonFields,
+        eventName: "workflow_dispatch" as const,
+        payload: context.payload as Record<string, any>,
+      };
+    }
+    case "schedule": {
+      return {
+        ...commonFields,
+        eventName: "schedule" as const,
+        payload: context.payload as Record<string, any>,
       };
     }
     default:
@@ -166,38 +212,52 @@ export function parseAdditionalPermissions(s: string): Map<string, string> {
   return permissions;
 }
 
+export function isEntityContext(
+  context: GitHubContext,
+): context is ParsedGitHubContext {
+  return "entityNumber" in context && "isPR" in context;
+}
+
+export function isAutomationEvent(
+  context: GitHubContext,
+): context is AutomationContext {
+  return AUTOMATION_EVENT_NAMES.includes(
+    context.eventName as AutomationEventName,
+  );
+}
+
 export function isIssuesEvent(
-  context: ParsedGitHubContext,
+  context: GitHubContext,
 ): context is ParsedGitHubContext & { payload: IssuesEvent } {
   return context.eventName === "issues";
 }
 
 export function isIssueCommentEvent(
-  context: ParsedGitHubContext,
+  context: GitHubContext,
 ): context is ParsedGitHubContext & { payload: IssueCommentEvent } {
   return context.eventName === "issue_comment";
 }
 
 export function isPullRequestEvent(
-  context: ParsedGitHubContext,
+  context: GitHubContext,
 ): context is ParsedGitHubContext & { payload: PullRequestEvent } {
   return context.eventName === "pull_request";
 }
 
 export function isPullRequestReviewEvent(
-  context: ParsedGitHubContext,
+  context: GitHubContext,
 ): context is ParsedGitHubContext & { payload: PullRequestReviewEvent } {
   return context.eventName === "pull_request_review";
 }
 
 export function isPullRequestReviewCommentEvent(
-  context: ParsedGitHubContext,
+  context: GitHubContext,
 ): context is ParsedGitHubContext & { payload: PullRequestReviewCommentEvent } {
   return context.eventName === "pull_request_review_comment";
 }
 
 export function isIssuesAssignedEvent(
-  context: ParsedGitHubContext,
+  context: GitHubContext,
 ): context is ParsedGitHubContext & { payload: IssuesAssignedEvent } {
   return isIssuesEvent(context) && context.eventAction === "assigned";
 }
