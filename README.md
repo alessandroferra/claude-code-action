@@ -69,57 +69,57 @@ jobs:
 
 ## Inputs
 
-| Input | Description | Required | Default |
-| ----- | ----------- | -------- | ------- |
-| **Trigger & Routing** | | | |
-| `trigger_phrase` | The trigger phrase to look for in comments, issue/PR bodies, and issue titles | No | `@claude` |
-| `assignee_trigger` | The assignee username that triggers the action (e.g. @claude). Only used for issue and PR assignment | No | - |
-| `label_trigger` | The label that triggers the action (e.g. `claude`) | No | `claude` |
-| `mode` | Execution mode: `tag` (default) or `agent` | No | `tag` |
-| **Branch & Base** | | | |
-| `branch_prefix` | Prefix for Claude branches (e.g. `claude/` or `claude-`) | No | `claude/` |
-| `base_branch` | Branch to use as base when creating new branches (defaults to repository default branch) | No | - |
-| **Authentication** | | | |
-| `anthropic_api_key` | Anthropic API key (required for direct API, not needed for Bedrock/Vertex) | No\* | - |
-| `claude_code_oauth_token` | Claude Code OAuth token (alternative to anthropic_api_key) | No | - |
-| `gitea_token` | Gitea token with repo and pull request permissions | No | - |
-| `github_token` | GitHub token with repo and pull request permissions (optional) | No | - |
-| **Claude Code Configuration** | | | |
-| `model` | Model to use (provider-specific format required for Bedrock/Vertex) | No | - |
-| `anthropic_model` | **DEPRECATED**: Use `model` instead | No | - |
-| `fallback_model` | Automatic fallback model when default model is overloaded | No | - |
-| `max_turns` | Maximum number of conversation turns | No | - |
-| `timeout_minutes` | Timeout in minutes for execution | No | `30` |
-| `allowed_tools` | Additional tools for Claude to use (base Gitea tools are always included) | No | `""` |
-| `disallowed_tools` | Tools that Claude should never use | No | `""` |
-| `custom_instructions` | Additional custom instructions to include in the prompt | No | `""` |
-| `direct_prompt` | Direct instruction for Claude (bypasses normal trigger detection) | No | `""` |
-| `override_prompt` | Complete replacement of Claude's prompt with custom template (supports variable substitution) | No | `""` |
-| `settings` | Path to Claude Code settings JSON file, or inline settings JSON string | No | `""` |
-| `system_prompt` | Override system prompt | No | `""` |
-| `append_system_prompt` | Append to system prompt | No | `""` |
-| `claude_env` | Custom environment variables for Claude Code execution (YAML multiline format) | No | `""` |
-| `additional_permissions` | Additional permissions to enable (currently supports `actions: read`) | No | `""` |
-| `path_to_claude_code_executable` | Path to a custom Claude Code executable instead of installing | No | `""` |
-| **Comment Filtering** | | | |
-| `include_comments_by_actor` | Comma-separated actor usernames to include in comments. Supports wildcards (e.g. `*[bot]`). Empty includes all | No | `""` |
-| `exclude_comments_by_actor` | Comma-separated actor usernames to exclude from comments. Supports wildcards. Exclusion takes priority over inclusion | No | `""` |
-| **Cloud Providers** | | | |
-| `use_bedrock` | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API | No | `false` |
-| `use_vertex` | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API | No | `false` |
-| `use_node_cache` | Use Node.js dependency caching (only for Node.js projects with lock files) | No | `false` |
-| **Git Identity** | | | |
-| `claude_git_name` | Git user.name for commits made by Claude | No | `Claude` |
-| `claude_git_email` | Git user.email for commits made by Claude | No | `claude@anthropic.com` |
+| Input                            | Description                                                                                                           | Required | Default                |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------- |
+| **Trigger & Routing**            |                                                                                                                       |          |                        |
+| `trigger_phrase`                 | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                         | No       | `@claude`              |
+| `assignee_trigger`               | The assignee username that triggers the action (e.g. @claude). Only used for issue and PR assignment                  | No       | -                      |
+| `label_trigger`                  | The label that triggers the action (e.g. `claude`)                                                                    | No       | `claude`               |
+| `mode`                           | Execution mode: `tag` (default) or `agent`                                                                            | No       | `tag`                  |
+| **Branch & Base**                |                                                                                                                       |          |                        |
+| `branch_prefix`                  | Prefix for Claude branches (e.g. `claude/` or `claude-`)                                                              | No       | `claude/`              |
+| `base_branch`                    | Branch to use as base when creating new branches (defaults to repository default branch)                              | No       | -                      |
+| **Authentication**               |                                                                                                                       |          |                        |
+| `anthropic_api_key`              | Anthropic API key (required for direct API, not needed for Bedrock/Vertex)                                            | No\*     | -                      |
+| `claude_code_oauth_token`        | Claude Code OAuth token (alternative to anthropic_api_key)                                                            | No       | -                      |
+| `gitea_token`                    | Gitea token with repo and pull request permissions                                                                    | No       | -                      |
+| `github_token`                   | GitHub token with repo and pull request permissions (optional)                                                        | No       | -                      |
+| **Claude Code Configuration**    |                                                                                                                       |          |                        |
+| `model`                          | Model to use (provider-specific format required for Bedrock/Vertex)                                                   | No       | -                      |
+| `anthropic_model`                | **DEPRECATED**: Use `model` instead                                                                                   | No       | -                      |
+| `fallback_model`                 | Automatic fallback model when default model is overloaded                                                             | No       | -                      |
+| `max_turns`                      | Maximum number of conversation turns                                                                                  | No       | -                      |
+| `timeout_minutes`                | Timeout in minutes for execution                                                                                      | No       | `30`                   |
+| `allowed_tools`                  | Additional tools for Claude to use (base Gitea tools are always included)                                             | No       | `""`                   |
+| `disallowed_tools`               | Tools that Claude should never use                                                                                    | No       | `""`                   |
+| `custom_instructions`            | Additional custom instructions to include in the prompt                                                               | No       | `""`                   |
+| `direct_prompt`                  | Direct instruction for Claude (bypasses normal trigger detection)                                                     | No       | `""`                   |
+| `override_prompt`                | Complete replacement of Claude's prompt with custom template (supports variable substitution)                         | No       | `""`                   |
+| `settings`                       | Path to Claude Code settings JSON file, or inline settings JSON string                                                | No       | `""`                   |
+| `system_prompt`                  | Override system prompt                                                                                                | No       | `""`                   |
+| `append_system_prompt`           | Append to system prompt                                                                                               | No       | `""`                   |
+| `claude_env`                     | Custom environment variables for Claude Code execution (YAML multiline format)                                        | No       | `""`                   |
+| `additional_permissions`         | Additional permissions to enable (currently supports `actions: read`)                                                 | No       | `""`                   |
+| `path_to_claude_code_executable` | Path to a custom Claude Code executable instead of installing                                                         | No       | `""`                   |
+| **Comment Filtering**            |                                                                                                                       |          |                        |
+| `include_comments_by_actor`      | Comma-separated actor usernames to include in comments. Supports wildcards (e.g. `*[bot]`). Empty includes all        | No       | `""`                   |
+| `exclude_comments_by_actor`      | Comma-separated actor usernames to exclude from comments. Supports wildcards. Exclusion takes priority over inclusion | No       | `""`                   |
+| **Cloud Providers**              |                                                                                                                       |          |                        |
+| `use_bedrock`                    | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                           | No       | `false`                |
+| `use_vertex`                     | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                                         | No       | `false`                |
+| `use_node_cache`                 | Use Node.js dependency caching (only for Node.js projects with lock files)                                            | No       | `false`                |
+| **Git Identity**                 |                                                                                                                       |          |                        |
+| `claude_git_name`                | Git user.name for commits made by Claude                                                                              | No       | `Claude`               |
+| `claude_git_email`               | Git user.email for commits made by Claude                                                                             | No       | `claude@anthropic.com` |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
 ## Outputs
 
-| Output | Description |
-| ------ | ----------- |
-| `execution_file` | Path to the Claude Code execution output file |
-| `branch_name` | The branch created by Claude Code for this execution |
+| Output           | Description                                          |
+| ---------------- | ---------------------------------------------------- |
+| `execution_file` | Path to the Claude Code execution output file        |
+| `branch_name`    | The branch created by Claude Code for this execution |
 
 ## Gitea Configuration
 
@@ -146,6 +146,7 @@ When running Gitea in containers, the action may generate links using internal c
 ```
 
 **How it works:**
+
 - The action first checks for `GITEA_SERVER_URL` (user-configurable)
 - Falls back to `GITHUB_SERVER_URL` (automatically set by Gitea Actions)
 - Uses `https://github.com` as final fallback
@@ -549,9 +550,11 @@ You can authenticate with Claude using any of these methods:
 If you have access to [Claude Code](https://claude.ai/code), you can use OAuth authentication instead of an API key:
 
 1. **Generate OAuth Token**: run the following command and follow instructions:
+
    ```
    claude setup-token
    ```
+
    This will generate an OAuth token that you can use for authentication.
 
 2. **Add Token to Repository**: Add the generated token as a repository secret named `CLAUDE_CODE_OAUTH_TOKEN`.
@@ -624,14 +627,14 @@ This applies to all sensitive values including API keys, access tokens, and cred
 
 The plugin (`/gitea-ci`) and the [`examples/`](./examples/) directory both offer these workflow types:
 
-| Type | Example File | Description |
-|------|-------------|-------------|
-| `assistant` | `gitea-claude.yml` | Interactive @claude trigger for issues and PRs |
-| `auto-review` | `claude-auto-review.yml` | Automatic PR review on open/sync |
-| `path-review` | `pr-review-filtered-paths.yml` | PR review filtered by file paths |
-| `issue-auto-comment` | — | Auto-analyze newly opened/edited issues |
-| `issue-triage` | `issue-triage.yml` | Auto-label, categorize, and detect duplicate issues |
-| `ci-fix` | `ci-failure-auto-fix.yml` | Analyze CI failures (analysis-only or auto-fix mode) |
+| Type                 | Example File                   | Description                                          |
+| -------------------- | ------------------------------ | ---------------------------------------------------- |
+| `assistant`          | `gitea-claude.yml`             | Interactive @claude trigger for issues and PRs       |
+| `auto-review`        | `claude-auto-review.yml`       | Automatic PR review on open/sync                     |
+| `path-review`        | `pr-review-filtered-paths.yml` | PR review filtered by file paths                     |
+| `issue-auto-comment` | —                              | Auto-analyze newly opened/edited issues              |
+| `issue-triage`       | `issue-triage.yml`             | Auto-label, categorize, and detect duplicate issues  |
+| `ci-fix`             | `ci-failure-auto-fix.yml`      | Analyze CI failures (analysis-only or auto-fix mode) |
 
 Use `/gitea-ci <type>` to generate a configured version, or copy from `examples/` directly.
 
