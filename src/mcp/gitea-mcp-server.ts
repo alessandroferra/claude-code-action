@@ -12,7 +12,9 @@ const BRANCH_NAME = process.env.BRANCH_NAME;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITEA_API_URL = process.env.GITEA_API_URL;
 if (!GITEA_API_URL) {
-  throw new Error("GITEA_API_URL environment variable is required for Gitea MCP server");
+  throw new Error(
+    "GITEA_API_URL environment variable is required for Gitea MCP server",
+  );
 }
 
 console.log(`[GITEA-MCP] Starting Gitea API Operations MCP Server`);

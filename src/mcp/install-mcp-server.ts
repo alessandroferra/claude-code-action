@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import type { ParsedGitHubContext } from "../github/context";
+import type { GitHubContext } from "../github/context";
 import { GITEA_API_URL } from "../github/api/config";
 
 export type PrepareMcpConfigOptions = {
@@ -9,7 +9,7 @@ export type PrepareMcpConfigOptions = {
   branch: string;
   baseBranch?: string;
   allowedTools?: string[];
-  context?: ParsedGitHubContext;
+  context?: GitHubContext;
   overrideConfig?: string;
   additionalMcpConfig?: string;
 };

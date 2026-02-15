@@ -13,7 +13,9 @@ const REPO_DIR = process.env.REPO_DIR || process.cwd();
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITEA_API_URL = process.env.GITEA_API_URL;
 if (!GITEA_API_URL) {
-  throw new Error("GITEA_API_URL environment variable is required for local git operations");
+  throw new Error(
+    "GITEA_API_URL environment variable is required for local git operations",
+  );
 }
 
 console.log(`[LOCAL-GIT-MCP] Starting Local Git Operations MCP Server`);
@@ -315,7 +317,11 @@ server.tool(
   async ({ force = false }) => {
     try {
       // Get current branch name
-      const currentBranch = runGitCommand(["rev-parse", "--abbrev-ref", "HEAD"]);
+      const currentBranch = runGitCommand([
+        "rev-parse",
+        "--abbrev-ref",
+        "HEAD",
+      ]);
 
       // Push the branch
       if (force) {
