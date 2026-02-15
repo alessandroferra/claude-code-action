@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "gitea-ci-workflows",
+  "description": "Generate customized Gitea Actions workflow files for claude-code-action",
+  "owner": {
+    "name": "Alessandro Ferro",
+    "email": "alessandro@ferro.dev"
+  },
+  "plugins": [
+    {
+      "name": "gitea-ci",
+      "description": "Interactively generate Gitea Actions CI workflows that integrate Claude into your repository. Supports PR review, CI auto-fix, issue triage, test analysis, and more.",
+      "source": "./plugins/gitea-ci",
+      "category": "productivity",
+      "author": {
+        "name": "Alessandro Ferro"
+      }
+    }
+  ]
+}

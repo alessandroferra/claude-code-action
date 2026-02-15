@@ -1,0 +1,46 @@
+name: Claude Review - Path Specific
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - "src/**/*.js"
+      - "src/**/*.ts"
+      # Add more patterns as needed
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude Code Review
+        uses: alessandroferra/claude-code-action@gitea
+        with:
+          gitea_token: ${{ secrets.GITEA_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          timeout_minutes: "60"
+          mode: agent
+          # claude_git_name: "Claude"
+          # claude_git_email: "claude@anthropic.com"
+          direct_prompt: |
+            Review this pull request focusing on the changed files.
+
+            Provide feedback on:
+            - Code quality and adherence to best practices
+            - Potential bugs or edge cases
+            - Performance considerations
+            - Security implications
+            - Suggestions for improvement
+
+            Since this PR touches critical source code paths, be thorough
+            in your review and provide inline comments where appropriate.
+        # env:
+        #   GITEA_SERVER_URL: https://gitea.example.com

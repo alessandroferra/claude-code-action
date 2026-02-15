@@ -1,0 +1,8 @@
+{
+  "name": "gitea-ci",
+  "description": "Interactively generate Gitea Actions CI workflows for claude-code-action",
+  "author": {
+    "name": "Alessandro Ferro",
+    "email": "alessandro@ferro.dev"
+  }
+}

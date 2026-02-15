@@ -1,0 +1,39 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage-issue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code for Issue Triage
+        uses: alessandroferra/claude-code-action@gitea
+        with:
+          gitea_token: ${{ secrets.GITEA_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          mode: agent
+          direct_prompt: |
+            Analyze the newly opened issue #${{ github.event.issue.number }} in ${{ github.repository }}.
+
+            Read the issue title and body, then:
+            1. Categorize the issue (bug, feature request, question, documentation, etc.)
+            2. Apply appropriate labels based on the content
+            3. If it's a bug report, check if critical information is missing
+               (steps to reproduce, expected behavior, actual behavior)
+            4. If information is missing, add a polite comment asking for details
+
+            Available labels to apply: bug, enhancement, question, documentation,
+            good first issue, help wanted, invalid, wontfix
+        # env:
+        #   GITEA_SERVER_URL: https://gitea.example.com

@@ -1,0 +1,71 @@
+name: Auto-Retry Flaky Tests
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  detect-flaky:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect flaky test failures
+        id: detect
+        uses: alessandroferra/claude-code-action@gitea
+        with:
+          gitea_token: ${{ secrets.GITEA_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            The CI workflow failed: ${{ github.event.workflow_run.html_url }}
+
+            Check the logs: gh run view ${{ github.event.workflow_run.id }} --log-failed
+
+            Determine if this looks like a flaky test failure by checking for:
+            - Timeout errors
+            - Race conditions
+            - Network errors
+            - "Expected X but got Y" intermittent failures
+            - Tests that passed in previous commits
+
+            Return:
+            - is_flaky: true if likely flaky, false if real bug
+            - confidence: number 0-1 indicating confidence level
+            - summary: brief one-sentence explanation
+
+      - name: Retry flaky tests
+        if: |
+          fromJSON(steps.detect.outputs.structured_output).is_flaky == true &&
+          fromJSON(steps.detect.outputs.structured_output).confidence >= 0.7
+        env:
+          GH_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          OUTPUT='${{ steps.detect.outputs.structured_output }}'
+          CONFIDENCE=$(echo "$OUTPUT" | jq -r '.confidence')
+          SUMMARY=$(echo "$OUTPUT" | jq -r '.summary')
+
+          echo "Flaky test detected (confidence: $CONFIDENCE)"
+          echo "Summary: $SUMMARY"
+          echo "Triggering automatic retry..."
+
+          gh workflow run "${{ github.event.workflow_run.name }}" \
+            --ref "${{ github.event.workflow_run.head_branch }}"
+
+      - name: Low confidence detection
+        if: |
+          fromJSON(steps.detect.outputs.structured_output).is_flaky == true &&
+          fromJSON(steps.detect.outputs.structured_output).confidence < 0.7
+        run: |
+          OUTPUT='${{ steps.detect.outputs.structured_output }}'
+          CONFIDENCE=$(echo "$OUTPUT" | jq -r '.confidence')
+          echo "Possible flaky test but confidence too low ($CONFIDENCE)"
+          echo "Not retrying automatically - manual review recommended"

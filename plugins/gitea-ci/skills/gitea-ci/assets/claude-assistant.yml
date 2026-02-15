@@ -1,0 +1,40 @@
+name: Claude Assistant
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+
+jobs:
+  claude-assistant:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || github.event.action == 'assigned'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Assistant
+        uses: alessandroferra/claude-code-action@gitea
+        with:
+          gitea_token: ${{ secrets.GITEA_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          timeout_minutes: "60"
+          trigger_phrase: "@claude"
+          # claude_git_name: "Claude"
+          # claude_git_email: "claude@anthropic.com"
+          custom_instructions: |
+            You are working in a Gitea environment. Be aware that:
+            - Some GitHub Actions features may behave differently
+            - Focus on core functionality and avoid advanced GitHub-specific features
+            - Use standard git operations when possible
+        # env:
+        #   GITEA_SERVER_URL: https://gitea.example.com
