@@ -17,7 +17,7 @@ import {
   isPullRequestReviewEvent,
   isPullRequestReviewCommentEvent,
 } from "../github/context";
-import type { ParsedGitHubContext } from "../github/context";
+import type { GitHubContext, ParsedGitHubContext } from "../github/context";
 import type { CommonFields, PreparedContext, EventData } from "./types";
 import type { Mode, ModeContext } from "../modes/types";
 import { getServerUrl } from "../github/api/config";
@@ -122,7 +122,9 @@ export function buildDisallowedToolsString(
   // If user has explicitly allowed some hardcoded disallowed tools, remove them from disallowed list
   const allowedList = normalizeToolList(allowedTools);
   if (allowedList.length > 0) {
-    disallowedTools = disallowedTools.filter((tool) => !allowedList.includes(tool));
+    disallowedTools = disallowedTools.filter(
+      (tool) => !allowedList.includes(tool),
+    );
   }
 
   let allDisallowedTools = disallowedTools.join(",");
@@ -426,7 +428,7 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
   }
 }
 
-function substitutePromptVariables(
+export function substitutePromptVariables(
   template: string,
   context: PreparedContext,
   githubData: FetchDataResult,
@@ -464,7 +466,8 @@ function substitutePromptVariables(
     CHANGED_FILES: eventData.isPR
       ? formatChangedFilesWithSHA(changedFilesWithSHA)
       : "",
-    TRIGGER_COMMENT: "commentBody" in eventData ? (eventData.commentBody || "") : "",
+    TRIGGER_COMMENT:
+      "commentBody" in eventData ? eventData.commentBody || "" : "",
     TRIGGER_USERNAME: context.triggerUsername || "",
     BRANCH_NAME:
       "claudeBranch" in eventData && eventData.claudeBranch
@@ -880,95 +883,129 @@ function extractUserRequestFromContext(
   return null;
 }
 
+async function createAgentPrompt(
+  githubData: FetchDataResult | undefined,
+  context: GitHubContext,
+) {
+  const { directPrompt, overridePrompt } = context.inputs;
+
+  if (!overridePrompt && !directPrompt) {
+    throw new Error(
+      "Agent mode requires direct_prompt or override_prompt input",
+    );
+  }
+
+  const promptDir = `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`;
+  await mkdir(promptDir, { recursive: true });
+
+  let promptContent: string;
+
+  if (overridePrompt && githubData) {
+    const minimalContext = prepareContext(
+      context as ParsedGitHubContext,
+      "",
+      context.inputs.baseBranch,
+      undefined,
+    );
+    promptContent = substitutePromptVariables(
+      overridePrompt,
+      minimalContext,
+      githubData,
+    );
+  } else if (overridePrompt) {
+    promptContent = overridePrompt;
+  } else {
+    promptContent = directPrompt;
+  }
+
+  console.log("===== AGENT MODE PROMPT =====");
+  console.log(promptContent);
+  console.log("=============================");
+
+  await writeFile(`${promptDir}/claude-prompt.txt`, promptContent);
+}
+
+function configureTools(mode: Mode, context: GitHubContext) {
+  const isPR = "isPR" in context ? context.isPR : false;
+  const hasActionsReadPermission =
+    context.inputs.additionalPermissions.get("actions") === "read" && isPR;
+
+  const modeAllowedTools = mode.getAllowedTools();
+  const modeDisallowedTools = mode.getDisallowedTools();
+
+  const combinedAllowedTools = [
+    ...context.inputs.allowedTools,
+    ...modeAllowedTools,
+  ];
+  const combinedDisallowedTools = [
+    ...context.inputs.disallowedTools,
+    ...modeDisallowedTools,
+  ];
+
+  const allAllowedTools = buildAllowedToolsString(
+    combinedAllowedTools,
+    hasActionsReadPermission,
+    context.inputs.useCommitSigning,
+  );
+  const allDisallowedTools = buildDisallowedToolsString(
+    combinedDisallowedTools,
+    combinedAllowedTools,
+  );
+
+  core.exportVariable("ALLOWED_TOOLS", allAllowedTools);
+  core.exportVariable("DISALLOWED_TOOLS", allDisallowedTools);
+}
+
 export async function createPrompt(
   mode: Mode,
   modeContext: ModeContext,
-  githubData: FetchDataResult,
-  context: ParsedGitHubContext,
+  githubData: FetchDataResult | undefined,
+  context: GitHubContext,
 ) {
   try {
-    // Tag mode requires a comment ID
-    if (mode.name === "tag" && !modeContext.commentId) {
-      throw new Error("Tag mode requires a comment ID for prompt generation");
-    }
+    if (mode.name === "agent") {
+      await createAgentPrompt(githubData, context);
+    } else {
+      if (!modeContext.commentId) {
+        throw new Error("Tag mode requires a comment ID for prompt generation");
+      }
 
-    // Prepare the context for prompt generation
-    const preparedContext = prepareContext(
-      context,
-      modeContext.commentId?.toString() || "",
-      modeContext.baseBranch,
-      modeContext.claudeBranch,
-    );
-
-    await mkdir(`${process.env.RUNNER_TEMP}/claude-prompts`, {
-      recursive: true,
-    });
-
-    // Generate the prompt directly
-    const promptContent = generatePrompt(
-      preparedContext,
-      githubData,
-      context.inputs.useCommitSigning,
-    );
-
-    // Log the final prompt to console
-    console.log("===== FINAL PROMPT =====");
-    console.log(promptContent);
-    console.log("=======================");
-
-    // Write the prompt file
-    await writeFile(
-      `${process.env.RUNNER_TEMP}/claude-prompts/claude-prompt.txt`,
-      promptContent,
-    );
-
-    // Extract and write the user request separately for SDK multi-block messaging
-    // This allows the CLI to process slash commands (e.g., "@claude /review-pr")
-    const userRequest = extractUserRequestFromContext(
-      preparedContext,
-      githubData,
-    );
-    if (userRequest) {
-      await writeFile(
-        `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts/${USER_REQUEST_FILENAME}`,
-        userRequest,
+      const entityContext = context as ParsedGitHubContext;
+      const preparedContext = prepareContext(
+        entityContext,
+        modeContext.commentId.toString(),
+        modeContext.baseBranch,
+        modeContext.claudeBranch,
       );
-      console.log("===== USER REQUEST =====");
-      console.log(userRequest);
-      console.log("========================");
+
+      const promptDir = `${process.env.RUNNER_TEMP || "/tmp"}/claude-prompts`;
+      await mkdir(promptDir, { recursive: true });
+
+      const promptContent = generatePrompt(
+        preparedContext,
+        githubData!,
+        entityContext.inputs.useCommitSigning,
+      );
+
+      console.log("===== FINAL PROMPT =====");
+      console.log(promptContent);
+      console.log("=======================");
+
+      await writeFile(`${promptDir}/claude-prompt.txt`, promptContent);
+
+      const userRequest = extractUserRequestFromContext(
+        preparedContext,
+        githubData!,
+      );
+      if (userRequest) {
+        await writeFile(`${promptDir}/${USER_REQUEST_FILENAME}`, userRequest);
+        console.log("===== USER REQUEST =====");
+        console.log(userRequest);
+        console.log("========================");
+      }
     }
 
-    // Set allowed tools
-    const hasActionsReadPermission =
-      context.inputs.additionalPermissions.get("actions") === "read" &&
-      context.isPR;
-
-    // Get mode-specific tools
-    const modeAllowedTools = mode.getAllowedTools();
-    const modeDisallowedTools = mode.getDisallowedTools();
-
-    // Combine with existing allowed tools
-    const combinedAllowedTools = [
-      ...context.inputs.allowedTools,
-      ...modeAllowedTools,
-    ];
-    const combinedDisallowedTools = [
-      ...context.inputs.disallowedTools,
-      ...modeDisallowedTools,
-    ];
-
-    const allAllowedTools = buildAllowedToolsString(
-      combinedAllowedTools,
-      hasActionsReadPermission,
-      context.inputs.useCommitSigning,
-    );
-    const allDisallowedTools = buildDisallowedToolsString(
-      combinedDisallowedTools,
-      combinedAllowedTools,
-    );
-
-    core.exportVariable("ALLOWED_TOOLS", allAllowedTools);
-    core.exportVariable("DISALLOWED_TOOLS", allDisallowedTools);
+    configureTools(mode, context);
   } catch (error) {
     core.setFailed(`Create prompt failed with error: ${error}`);
     process.exit(1);
