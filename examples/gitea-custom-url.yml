@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Claude Code Analysis
-        uses: markwylde/claude-code-gitea-action@gitea
+        uses: alessandroferra/claude-code-action@gitea
         with:
           gitea_token: ${{ secrets.GITHUB_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_API_KEY }}

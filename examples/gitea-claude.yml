@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run Claude Assistant
-        uses: markwylde/claude-code-gitea-action@gitea
+        uses: alessandroferra/claude-code-action@gitea
         with:
           gitea_token: ${{ secrets.GITEA_TOKEN }} # Use standard workflow token
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

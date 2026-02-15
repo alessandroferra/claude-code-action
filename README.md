@@ -1,5 +1,7 @@
 # Claude Code Action for Gitea
 
+> This project is a Gitea-compatible fork of [anthropics/claude-code-action](https://github.com/anthropics/claude-code-action), building on [markwylde/claude-code-gitea-action](https://github.com/markwylde/claude-code-gitea-action). Huge thanks to [Anthropic](https://github.com/anthropics) and [Mark Wylde](https://github.com/markwylde) for doing most of the heavy lifting — this fork builds on their work to add first-class Gitea support.
+
 ![Claude Code Action in action](assets/preview.png)
 
 A Gitea action that provides a general-purpose [Claude Code](https://claude.ai/code) assistant for PRs and issues that can answer questions and implement code changes. It listens for a trigger phrase in comments and activates Claude to act on the request. Supports multiple authentication methods including Anthropic direct API, Amazon Bedrock, and Google Vertex AI.
@@ -44,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: markwylde/claude-code-gitea-action@v1.0.5
+      - uses: alessandroferra/claude-code-action@gitea
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }} # if you want to use direct API
           gitea_token: ${{ secrets.GITEA_TOKEN }} # could be another users token (specific Claude user?)
@@ -54,28 +56,57 @@ jobs:
 
 ## Inputs
 
-| Input                 | Description                                                                                                                  | Required | Default                |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------- |
-| `anthropic_api_key`   | Anthropic API key (required for direct API, not needed for Bedrock/Vertex) | No\*     | -                      |
-| `claude_code_oauth_token` | Claude Code OAuth token (alternative to anthropic_api_key) | No       | -                      |
-| `direct_prompt`       | Direct prompt for Claude to execute automatically without needing a trigger (for automated workflows)                        | No       | -                      |
-| `timeout_minutes`     | Timeout in minutes for execution                                                                                             | No       | `30`                   |
-| `gitea_token`         | Gitea token for Claude to operate with. **Only include this if you're connecting a custom GitHub app of your own!**          | No       | -                      |
-| `model`               | Model to use (provider-specific format required for Bedrock/Vertex)                                                          | No       | -                      |
-| `anthropic_model`     | **DEPRECATED**: Use `model` instead. Kept for backward compatibility.                                                        | No       | -                      |
-| `use_bedrock`         | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API                                                  | No       | `false`                |
-| `use_vertex`          | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API                                                | No       | `false`                |
-| `allowed_tools`       | Additional tools for Claude to use (the base GitHub tools will always be included)                                           | No       | ""                     |
-| `disallowed_tools`    | Tools that Claude should never use                                                                                           | No       | ""                     |
-| `custom_instructions` | Additional custom instructions to include in the prompt for Claude                                                           | No       | ""                     |
-| `assignee_trigger`    | The assignee username that triggers the action (e.g. @claude). Only used for issue and PR assignment                                | No       | -                      |
-| `trigger_phrase`      | The trigger phrase to look for in comments, issue/PR bodies, and issue titles                                                | No       | `@claude`              |
-| `claude_git_name`     | Git user.name for commits made by Claude                                                                                     | No       | `Claude`               |
-| `claude_git_email`    | Git user.email for commits made by Claude                                                                                    | No       | `claude@anthropic.com` |
+| Input | Description | Required | Default |
+| ----- | ----------- | -------- | ------- |
+| **Trigger & Routing** | | | |
+| `trigger_phrase` | The trigger phrase to look for in comments, issue/PR bodies, and issue titles | No | `@claude` |
+| `assignee_trigger` | The assignee username that triggers the action (e.g. @claude). Only used for issue and PR assignment | No | - |
+| `label_trigger` | The label that triggers the action (e.g. `claude`) | No | `claude` |
+| `mode` | Execution mode: `tag` (default) or `agent` | No | `tag` |
+| **Branch & Base** | | | |
+| `branch_prefix` | Prefix for Claude branches (e.g. `claude/` or `claude-`) | No | `claude/` |
+| `base_branch` | Branch to use as base when creating new branches (defaults to repository default branch) | No | - |
+| **Authentication** | | | |
+| `anthropic_api_key` | Anthropic API key (required for direct API, not needed for Bedrock/Vertex) | No\* | - |
+| `claude_code_oauth_token` | Claude Code OAuth token (alternative to anthropic_api_key) | No | - |
+| `gitea_token` | Gitea token with repo and pull request permissions | No | - |
+| `github_token` | GitHub token with repo and pull request permissions (optional) | No | - |
+| **Claude Code Configuration** | | | |
+| `model` | Model to use (provider-specific format required for Bedrock/Vertex) | No | - |
+| `anthropic_model` | **DEPRECATED**: Use `model` instead | No | - |
+| `fallback_model` | Automatic fallback model when default model is overloaded | No | - |
+| `max_turns` | Maximum number of conversation turns | No | - |
+| `timeout_minutes` | Timeout in minutes for execution | No | `30` |
+| `allowed_tools` | Additional tools for Claude to use (base Gitea tools are always included) | No | `""` |
+| `disallowed_tools` | Tools that Claude should never use | No | `""` |
+| `custom_instructions` | Additional custom instructions to include in the prompt | No | `""` |
+| `direct_prompt` | Direct instruction for Claude (bypasses normal trigger detection) | No | `""` |
+| `override_prompt` | Complete replacement of Claude's prompt with custom template (supports variable substitution) | No | `""` |
+| `settings` | Path to Claude Code settings JSON file, or inline settings JSON string | No | `""` |
+| `system_prompt` | Override system prompt | No | `""` |
+| `append_system_prompt` | Append to system prompt | No | `""` |
+| `claude_env` | Custom environment variables for Claude Code execution (YAML multiline format) | No | `""` |
+| `additional_permissions` | Additional permissions to enable (currently supports `actions: read`) | No | `""` |
+| `path_to_claude_code_executable` | Path to a custom Claude Code executable instead of installing | No | `""` |
+| **Comment Filtering** | | | |
+| `include_comments_by_actor` | Comma-separated actor usernames to include in comments. Supports wildcards (e.g. `*[bot]`). Empty includes all | No | `""` |
+| `exclude_comments_by_actor` | Comma-separated actor usernames to exclude from comments. Supports wildcards. Exclusion takes priority over inclusion | No | `""` |
+| **Cloud Providers** | | | |
+| `use_bedrock` | Use Amazon Bedrock with OIDC authentication instead of direct Anthropic API | No | `false` |
+| `use_vertex` | Use Google Vertex AI with OIDC authentication instead of direct Anthropic API | No | `false` |
+| `use_node_cache` | Use Node.js dependency caching (only for Node.js projects with lock files) | No | `false` |
+| **Git Identity** | | | |
+| `claude_git_name` | Git user.name for commits made by Claude | No | `Claude` |
+| `claude_git_email` | Git user.email for commits made by Claude | No | `claude@anthropic.com` |
 
 \*Required when using direct Anthropic API (default and when not using Bedrock or Vertex)
 
-> **Note**: This action is currently in beta. Features and APIs may change as we continue to improve the integration.
+## Outputs
+
+| Output | Description |
+| ------ | ----------- |
+| `execution_file` | Path to the Claude Code execution output file |
+| `branch_name` | The branch created by Claude Code for this execution |
 
 ## Gitea Configuration
 
@@ -92,7 +123,7 @@ This action has been enhanced to work with Gitea installations. The main differe
 When running Gitea in containers, the action may generate links using internal container URLs (e.g., `http://gitea:3000`) instead of your public URL. To fix this, set the `GITEA_SERVER_URL` environment variable:
 
 ```yaml
-- uses: markwylde/claude-code-gitea-action@v1.0.5
+- uses: alessandroferra/claude-code-action@gitea
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     gitea_token: ${{ secrets.GITEA_TOKEN }}
@@ -191,7 +222,7 @@ on:
       - "src/api/**/*.ts"
 
 steps:
-  - uses: markwylde/claude-code-gitea-action@v1.0.5
+  - uses: alessandroferra/claude-code-action@gitea
     with:
       direct_prompt: |
         Update the API documentation in README.md to reflect
@@ -215,7 +246,7 @@ jobs:
       github.event.pull_request.user.login == 'developer1' ||
       github.event.pull_request.user.login == 'external-contributor'
     steps:
-      - uses: markwylde/claude-code-gitea-action@v1
+      - uses: alessandroferra/claude-code-action@gitea
         with:
           direct_prompt: |
             Please provide a thorough review of this pull request.
@@ -230,7 +261,7 @@ Perfect for automatically reviewing PRs from new team members, external contribu
 Use `override_prompt` for complete control over Claude's behavior with variable substitution:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: alessandroferra/claude-code-action@gitea
   with:
     override_prompt: |
       Analyze PR #$PR_NUMBER in $REPOSITORY for security vulnerabilities.
@@ -314,7 +345,7 @@ To allow Claude to view workflow run results, job logs, and CI status:
 2. **Configure the action with additional permissions**:
 
    ```yaml
-   - uses: anthropics/claude-code-action@beta
+   - uses: alessandroferra/claude-code-action@gitea
      with:
        anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
        additional_permissions: |
@@ -346,7 +377,7 @@ jobs:
   claude-ci-helper:
     runs-on: ubuntu-latest
     steps:
-      - uses: anthropics/claude-code-action@beta
+      - uses: alessandroferra/claude-code-action@gitea
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           additional_permissions: |
@@ -365,7 +396,7 @@ jobs:
 You can pass custom environment variables to Claude Code execution using the `claude_env` input. This is useful for CI/test setups that require specific environment variables:
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: alessandroferra/claude-code-action@gitea
   with:
     claude_env: |
       NODE_ENV: test
@@ -385,7 +416,7 @@ You can use the `max_turns` parameter to limit the number of back-and-forth exch
 - Ensuring predictable behavior in CI/CD pipelines
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: alessandroferra/claude-code-action@gitea
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     max_turns: "5" # Limit to 5 conversation turns
@@ -407,7 +438,7 @@ Claude does **not** have access to execute arbitrary Bash commands by default. I
 **Note**: If your repository has a `.mcp.json` file in the root directory, Claude will automatically detect and use the MCP server tools defined there. However, these tools still need to be explicitly allowed via the `allowed_tools` configuration.
 
 ```yaml
-- uses: markwylde/claude-code-gitea-action@v1
+- uses: alessandroferra/claude-code-action@gitea
   with:
     allowed_tools: |
       Bash(npm install)
@@ -428,76 +459,11 @@ Claude does **not** have access to execute arbitrary Bash commands by default. I
 Use a specific Claude model:
 
 ```yaml
-- uses: markwylde/claude-code-gitea-action@v1
+- uses: alessandroferra/claude-code-action@gitea
   with:
     # model: "claude-3-5-sonnet-20241022"  # Optional: specify a different model
     # ... other inputs
 ```
-
-### Network Restrictions
-
-For enhanced security, you can restrict Claude's network access to specific domains only. This feature is particularly useful for:
-
-- Enterprise environments with strict security policies
-- Preventing access to external services
-- Limiting Claude to only your internal APIs and services
-
-When `experimental_allowed_domains` is set, Claude can only access the domains you explicitly list. You'll need to include the appropriate provider domains based on your authentication method.
-
-#### Provider-Specific Examples
-
-##### If using Anthropic API or subscription
-
-```yaml
-- uses: anthropics/claude-code-action@beta
-  with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    # Or: claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-    experimental_allowed_domains: |
-      .anthropic.com
-```
-
-##### If using AWS Bedrock
-
-```yaml
-- uses: anthropics/claude-code-action@beta
-  with:
-    use_bedrock: "true"
-    experimental_allowed_domains: |
-      bedrock.*.amazonaws.com
-      bedrock-runtime.*.amazonaws.com
-```
-
-##### If using Google Vertex AI
-
-```yaml
-- uses: anthropics/claude-code-action@beta
-  with:
-    use_vertex: "true"
-    experimental_allowed_domains: |
-      *.googleapis.com
-      vertexai.googleapis.com
-```
-
-#### Common GitHub Domains
-
-In addition to your provider domains, you may need to include GitHub-related domains. For GitHub.com users, common domains include:
-
-```yaml
-- uses: anthropics/claude-code-action@beta
-  with:
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    experimental_allowed_domains: |
-      .anthropic.com  # For Anthropic API
-      .github.com
-      .githubusercontent.com
-      ghcr.io
-      .blob.core.windows.net
-```
-
-For GitHub Enterprise users, replace the GitHub.com domains above with your enterprise domains (e.g., `.github.company.com`, `packages.company.com`, etc.).
-
-To determine which domains your workflow needs, you can temporarily run without restrictions and monitor the network requests, or check your GitHub Enterprise configuration for the specific services you use.
 
 ### Claude Code Settings
 
@@ -506,7 +472,7 @@ You can provide Claude Code settings to customize behavior such as model selecti
 #### Option 1: Settings File
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: alessandroferra/claude-code-action@gitea
   with:
     settings: "path/to/settings.json"
     # ... other inputs
@@ -515,7 +481,7 @@ You can provide Claude Code settings to customize behavior such as model selecti
 #### Option 2: Inline Settings
 
 ```yaml
-- uses: anthropics/claude-code-action@beta
+- uses: alessandroferra/claude-code-action@gitea
   with:
     settings: |
       {
@@ -580,7 +546,7 @@ If you have access to [Claude Code](https://claude.ai/code), you can use OAuth a
 3. **Configure Workflow**: Use the OAuth token in your workflow:
 
 ```yaml
-- uses: markwylde/claude-code-gitea-action@v1.0.5
+- uses: alessandroferra/claude-code-action@gitea
   with:
     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     gitea_token: ${{ secrets.GITEA_TOKEN }}
