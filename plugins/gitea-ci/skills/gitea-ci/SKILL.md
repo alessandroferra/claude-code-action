@@ -89,6 +89,10 @@ Present sensible defaults so the user can accept quickly.
    - If bot identity provided, uncomment and set `claude_git_name` / `claude_git_email`
    - If custom Gitea URL provided, uncomment and set `GITEA_SERVER_URL` env
    - Adapt `direct_prompt` content if the user specified focus areas
+   - Always preserve the response format directives at the end of
+     `direct_prompt` and `custom_instructions` (no emojis, concise,
+     technical tone, path:line references). These must remain in the
+     final output regardless of other customizations.
 3. Write to `.gitea/workflows/<name>.yml`
 4. If the file already exists, use AskUserQuestion to ask whether to overwrite
    or suggest an alternative filename

@@ -28,7 +28,7 @@ jobs:
           # claude_git_name: "Claude"
           # claude_git_email: "claude@anthropic.com"
           direct_prompt: |
-            Review this pull request and provide comprehensive feedback.
+            Review this pull request.
 
             Focus on:
             - Code quality and best practices
@@ -38,7 +38,10 @@ jobs:
             - Test coverage
             - Documentation updates if needed
 
-            Provide constructive feedback with specific suggestions for improvement.
-            Use inline comments to highlight specific areas of concern.
+            Post actionable suggestions as inline comments where possible.
+            Use a top-level summary only for cross-cutting concerns.
+
+            Do not use emojis. Be concise and technical. Reference files
+            with path:line format. Omit generic praise or filler.
         # env:
         #   GITEA_SERVER_URL: https://gitea.example.com

@@ -34,9 +34,14 @@ jobs:
           # claude_git_name: "Claude"
           # claude_git_email: "claude@anthropic.com"
           custom_instructions: |
-            You are working in a Gitea environment. Be aware that:
-            - Some GitHub Actions features may behave differently
-            - Focus on core functionality and avoid advanced GitHub-specific features
-            - Use standard git operations when possible
+            This is a Gitea environment. Use standard git operations and avoid
+            GitHub-specific features (e.g. GitHub Apps API, check suites,
+            pull_request_review_comment events) that Gitea does not support.
+
+            Response format:
+            - Do not use emojis.
+            - Be concise and technical. Omit filler phrases.
+            - Use plain markdown. Prefer inline code and short code blocks.
+            - Reference files with path:line format.
         # env:
         #   GITEA_SERVER_URL: https://gitea.example.com

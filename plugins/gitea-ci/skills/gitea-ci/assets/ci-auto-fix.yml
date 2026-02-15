@@ -27,6 +27,11 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITEA_TOKEN }}
 
+      - name: Setup git identity
+        run: |
+          git config --global user.email "claude[bot]@users.noreply.github.com"
+          git config --global user.name "claude[bot]"
+
       - name: Create fix branch
         id: branch
         run: |
@@ -82,7 +87,7 @@ jobs:
           # claude_git_name: "Claude"
           # claude_git_email: "claude@anthropic.com"
           direct_prompt: |
-            A CI workflow failed. Analyze the failure and attempt to fix it.
+            CI run failed. Analyze the failure and attempt to fix it.
 
             Failed CI Run: ${{ fromJSON(steps.failure_details.outputs.result).runUrl }}
             Failed Jobs: ${{ join(fromJSON(steps.failure_details.outputs.result).failedJobs, ', ') }}
@@ -94,15 +99,17 @@ jobs:
             Error logs:
             ${{ toJSON(fromJSON(steps.failure_details.outputs.result).errorLogs) }}
 
-            **Step 1 — Classify the failure:**
+            **Step 1 -- Classify the failure:**
             Determine if this is a flaky test (timeout, race condition, network
             error, intermittent assertion) or a real code issue.
 
-            **Step 2 — Act accordingly:**
+            **Step 2 -- Act accordingly:**
             - If flaky: comment on the PR noting it appears flaky with a brief
               explanation. Do not attempt code changes.
-            - If real failure: analyze the root cause, apply a fix, commit, and
-              push to the fix branch.
+            - If real failure: analyze the root cause, apply a fix, commit,
+              and push to the fix branch.
+
+            Do not use emojis. Be concise and technical.
           allowed_tools: "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(bun:*),Bash(npm:*),Bash(npx:*)"
         # env:
         #   GITEA_SERVER_URL: https://gitea.example.com

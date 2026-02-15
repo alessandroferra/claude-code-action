@@ -41,7 +41,10 @@ jobs:
             - Security implications
             - Suggestions for improvement
 
-            Since this PR touches critical source code paths, be thorough
-            in your review and provide inline comments where appropriate.
+            Post actionable suggestions as inline comments where possible.
+            Use a top-level summary only for cross-cutting concerns.
+
+            Do not use emojis. Be concise and technical. Reference files
+            with path:line format. Omit generic praise or filler.
         # env:
         #   GITEA_SERVER_URL: https://gitea.example.com

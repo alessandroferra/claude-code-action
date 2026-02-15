@@ -25,23 +25,19 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           mode: tag
           direct_prompt: |
-            Analyze the newly opened issue #${{ github.event.issue.number }} in ${{ github.repository }}.
+            Triage issue #${{ github.event.issue.number }} in ${{ github.repository }}.
 
-            Read the issue title and body, then:
+            1. List the repository's available labels to see what categories
+               exist for classification.
+            2. Categorize the issue (bug, feature request, question,
+               documentation, etc.) and apply appropriate labels.
+            3. Search existing open and recently closed issues for duplicates.
+               If a likely duplicate exists, comment with a link to the original
+               and apply a "duplicate" label. Only flag true duplicates, not
+               merely similar topics.
+            4. For bug reports missing key details (steps to reproduce, expected
+               vs actual behavior, environment), note what is absent.
 
-            1. **Check available labels**: List the repository's labels to see what
-               categories are available for classification.
-
-            2. **Categorize** the issue (bug, feature request, question, documentation,
-               etc.) and apply appropriate labels based on the content and what exists.
-
-            3. **Check for duplicates**: Search existing open and recently closed issues
-               for similar reports. If a likely duplicate exists, add a comment linking
-               to the original issue and apply a "duplicate" label. Be sure it is a
-               true duplicate, not just a similar topic.
-
-            4. **Note missing info**: If it is a bug report and key details are absent
-               (steps to reproduce, expected vs actual behavior, environment), note
-               what appears to be missing in your comment.
+            Do not use emojis. Be concise and technical.
         # env:
         #   GITEA_SERVER_URL: https://gitea.example.com

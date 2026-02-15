@@ -72,8 +72,8 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           mode: tag
           direct_prompt: |
-            A CI workflow failed. Analyze the failure and comment on the PR with
-            your findings. Do NOT make any code changes or push commits.
+            CI run failed. Analyze the failure and post findings to the PR.
+            Do not make any code changes or push commits.
 
             Failed CI Run: ${{ fromJSON(steps.failure_details.outputs.result).runUrl }}
             Failed Jobs: ${{ join(fromJSON(steps.failure_details.outputs.result).failedJobs, ', ') }}
@@ -83,11 +83,14 @@ jobs:
             Error logs:
             ${{ toJSON(fromJSON(steps.failure_details.outputs.result).errorLogs) }}
 
-            Provide an analysis covering:
-            1. **Classification**: flaky test (timeout, race condition, network error)
-               or real code issue
-            2. **Root cause**: what specifically failed and why
-            3. **Relevant code**: reference specific files and lines if possible
-            4. **Suggested fix**: describe what needs to change (but do not apply it)
+            Structure your analysis as:
+            1. **Classification**: flaky test (timeout, race condition, network
+               error) or real code issue.
+            2. **Root cause**: what specifically failed and why.
+            3. **Relevant code**: reference specific files and lines where
+               applicable.
+            4. **Suggested fix**: describe what needs to change (do not apply).
+
+            Do not use emojis. Be concise and technical.
         # env:
         #   GITEA_SERVER_URL: https://gitea.example.com

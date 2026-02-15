@@ -27,19 +27,20 @@ jobs:
           # claude_git_name: "Claude"
           # claude_git_email: "claude@anthropic.com"
           direct_prompt: |
-            A new issue was just opened: #${{ github.event.issue.number }}
-            Repository: ${{ github.repository }}
+            Issue #${{ github.event.issue.number }} opened in ${{ github.repository }}.
 
-            Analyze the issue and provide an initial assessment:
-            - Start with a brief summary of what the issue is about
-            - Identify which area of the codebase is likely involved
-            - Reference specific files, functions, or modules that are relevant
-            - If it's a bug report: analyze potential root causes based on the code
-            - If it's a feature request: outline where in the codebase this would
-              need to change and any architectural considerations
-            - If it's a question: answer it based on the codebase
-            - Note if any key information appears to be missing from the report
+            Provide an initial assessment:
+            - Summarize what the issue is about.
+            - Identify which area of the codebase is likely involved.
+            - Reference specific files, functions, or modules that are relevant.
+            - If bug report: analyze potential root causes based on the code.
+            - If feature request: outline where in the codebase changes would
+              be needed and any architectural considerations.
+            - If question: answer it based on the codebase.
+            - Flag any missing information (repro steps, expected vs actual
+              behavior, environment).
 
-            Be concise and analytical. Do not make code changes — only comment.
+            Analysis only. Do not modify files. Do not use emojis.
+            Be concise and technical. Reference files with path:line format.
         # env:
         #   GITEA_SERVER_URL: https://gitea.example.com
