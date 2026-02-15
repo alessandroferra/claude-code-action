@@ -95,9 +95,10 @@ Present sensible defaults so the user can accept quickly.
 After writing the file, present this checklist:
 
 **Required secrets** (Gitea repo Settings > Actions > Secrets):
-- `GITEA_TOKEN` — Personal access token with repository read/write and
-  issue/PR permissions
-- `ANTHROPIC_API_KEY` — Anthropic API key for Claude
+- `ANTHROPIC_API_KEY` — Anthropic API key, OR
+- `CLAUDE_CODE_OAUTH_TOKEN` — Claude Code OAuth token (alternative auth method)
+
+**Note**: No `GITEA_TOKEN` needed — workflows use `github.token` (auto-provided)
 
 **Optional**:
 - `GITEA_SERVER_URL` — Set in the workflow `env:` block if Gitea runs in a

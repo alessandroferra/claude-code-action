@@ -28,9 +28,10 @@ jobs:
           # - Creates tracking comments with progress checkboxes
           # - Perfect for: Interactive Q&A, on-demand code changes
 
-  # Agent Mode - Automation without triggers
-  agent-mode-auto-review:
+  # Tag Mode with Direct Prompt - Automation without trigger scanning
+  tag-mode-auto-review:
     # Automatically review every new PR
+    # NOTE: Agent mode is currently broken. Use tag mode with direct_prompt instead.
     if: github.event_name == 'pull_request' && github.event.action == 'opened'
     runs-on: ubuntu-latest
     permissions:
@@ -41,16 +42,16 @@ jobs:
     steps:
       - uses: anthropics/claude-code-action@beta
         with:
-          mode: agent
+          mode: tag
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          override_prompt: |
+          direct_prompt: |
             Review this PR for code quality. Focus on:
             - Potential bugs or logic errors
             - Security concerns
             - Performance issues
 
             Provide specific, actionable feedback.
-          # Agent mode behavior:
-          # - NO @claude mention needed - runs immediately
-          # - Enables true automation (impossible with tag mode)
+          # Tag mode with direct_prompt behavior:
+          # - NO @claude mention needed - runs immediately with the provided prompt
+          # - Enables automation without trigger phrase scanning
           # - Perfect for: CI/CD integration, automatic reviews, label-based workflows

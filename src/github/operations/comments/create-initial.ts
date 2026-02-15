@@ -18,7 +18,7 @@ import type { GiteaApiClient } from "../../api/gitea-client";
 // immediately edit it to the actual working status body (which renders correctly in full view).
 // The preview caches the initial text, so it stays clean in the list.
 // Remove this once Gitea supports HTML rendering in comment previews.
-const PREVIEW_PLACEHOLDER = "Claude Code is working on a response.";
+const PREVIEW_PLACEHOLDER = "Claude Code response preview is available";
 
 export async function createInitialComment(
   api: GiteaApiClient,

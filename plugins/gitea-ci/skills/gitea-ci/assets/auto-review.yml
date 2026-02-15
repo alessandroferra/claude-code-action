@@ -20,10 +20,11 @@ jobs:
       - name: Automatic PR Review
         uses: alessandroferra/claude-code-action@gitea
         with:
-          gitea_token: ${{ secrets.GITEA_TOKEN }}
+          gitea_token: ${{ github.token }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           timeout_minutes: "60"
-          mode: agent
+          mode: tag
           # claude_git_name: "Claude"
           # claude_git_email: "claude@anthropic.com"
           direct_prompt: |

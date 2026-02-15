@@ -2,7 +2,7 @@ name: Claude Issue Auto Comment
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened]
 
 jobs:
   auto-comment:
@@ -19,10 +19,11 @@ jobs:
       - name: Auto-comment on new issue
         uses: alessandroferra/claude-code-action@gitea
         with:
-          gitea_token: ${{ secrets.GITEA_TOKEN }}
+          gitea_token: ${{ github.token }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           timeout_minutes: "10"
-          mode: agent
+          mode: tag
           # claude_git_name: "Claude"
           # claude_git_email: "claude@anthropic.com"
           direct_prompt: |

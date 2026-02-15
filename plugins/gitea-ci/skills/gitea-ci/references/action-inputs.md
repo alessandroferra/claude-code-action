@@ -23,9 +23,9 @@ Only Gitea-relevant inputs are documented here.
 
 | Input | Description |
 |-------|-------------|
-| `anthropic_api_key` | Anthropic API key (required) |
+| `anthropic_api_key` | Anthropic API key (one auth method required) |
 | `claude_code_oauth_token` | OAuth token (alternative to API key) |
-| `gitea_token` | Gitea token with repo and PR permissions |
+| `gitea_token` | Gitea token with repo/PR permissions (defaults to `github.token`) |
 
 ## Claude Code Configuration
 
