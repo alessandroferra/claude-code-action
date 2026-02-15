@@ -13,6 +13,13 @@ import {
 } from "../../context";
 import type { GiteaApiClient } from "../../api/gitea-client";
 
+// HACK: Gitea's list/preview view does not render inline HTML and shows raw <img> tags as text.
+// To work around this, we create the comment with a plain-text placeholder first, then
+// immediately edit it to the actual working status body (which renders correctly in full view).
+// The preview caches the initial text, so it stays clean in the list.
+// Remove this once Gitea supports HTML rendering in comment previews.
+const PREVIEW_PLACEHOLDER = "Claude Code is working on a response.";
+
 export async function createInitialComment(
   api: GiteaApiClient,
   context: ParsedGitHubContext,
@@ -20,7 +27,7 @@ export async function createInitialComment(
   const { owner, repo } = context.repository;
 
   const jobRunLink = createJobRunLink(owner, repo, context.runId);
-  const initialBody = createCommentBody(jobRunLink);
+  const workingBody = createCommentBody(jobRunLink);
 
   try {
     let response;
@@ -37,7 +44,7 @@ export async function createInitialComment(
         "POST",
         `/repos/${owner}/${repo}/pulls/${context.entityNumber}/comments/${context.payload.comment.id}/replies`,
         {
-          body: initialBody,
+          body: PREVIEW_PLACEHOLDER,
         },
       );
     } else {
@@ -47,15 +54,20 @@ export async function createInitialComment(
         owner,
         repo,
         context.entityNumber,
-        initialBody,
+        PREVIEW_PLACEHOLDER,
       );
     }
 
+    const commentId = response.data.id;
+
+    // Immediately edit the comment to the actual working status body
+    await api.updateIssueComment(owner, repo, commentId, workingBody);
+
     // Output the comment ID for downstream steps using GITHUB_OUTPUT
     const githubOutput = process.env.GITHUB_OUTPUT!;
-    appendFileSync(githubOutput, `claude_comment_id=${response.data.id}\n`);
-    console.log(`✅ Created initial comment with ID: ${response.data.id}`);
-    return response.data.id;
+    appendFileSync(githubOutput, `claude_comment_id=${commentId}\n`);
+    console.log(`✅ Created initial comment with ID: ${commentId}`);
+    return commentId;
   } catch (error) {
     console.error("Error in initial comment:", error);
 
@@ -65,13 +77,16 @@ export async function createInitialComment(
         owner,
         repo,
         context.entityNumber,
-        initialBody,
+        PREVIEW_PLACEHOLDER,
       );
 
+      const commentId = response.data.id;
+      await api.updateIssueComment(owner, repo, commentId, workingBody).catch(() => {});
+
       const githubOutput = process.env.GITHUB_OUTPUT!;
-      appendFileSync(githubOutput, `claude_comment_id=${response.data.id}\n`);
-      console.log(`✅ Created fallback comment with ID: ${response.data.id}`);
-      return response.data.id;
+      appendFileSync(githubOutput, `claude_comment_id=${commentId}\n`);
+      console.log(`✅ Created fallback comment with ID: ${commentId}`);
+      return commentId;
     } catch (fallbackError) {
       console.error("Error creating fallback comment:", fallbackError);
       throw fallbackError;
