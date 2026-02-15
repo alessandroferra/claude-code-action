@@ -50,9 +50,9 @@ type PullRequestCommentEvent = {
   baseBranch?: string;
 };
 
-type IssueOpenedEvent = {
+type IssueOpenedOrEditedEvent = {
   eventName: "issues";
-  eventAction: "opened";
+  eventAction: "opened" | "edited";
   isPR: false;
   issueNumber: string;
   baseBranch: string;
@@ -94,7 +94,7 @@ export type EventData =
   | PullRequestReviewEvent
   | PullRequestCommentEvent
   | IssueCommentEvent
-  | IssueOpenedEvent
+  | IssueOpenedOrEditedEvent
   | IssueAssignedEvent
   | IssueLabeledEvent
   | PullRequestEvent;

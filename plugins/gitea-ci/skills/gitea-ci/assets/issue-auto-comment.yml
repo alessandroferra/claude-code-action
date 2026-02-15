@@ -2,7 +2,7 @@ name: Claude Issue Auto Comment
 
 on:
   issues:
-    types: [opened]
+    types: [opened, edited]
 
 jobs:
   auto-comment:

@@ -330,10 +330,10 @@ export function prepareContext(
           ...(claudeBranch && { claudeBranch }),
           labelTrigger,
         };
-      } else if (eventAction === "opened") {
+      } else if (eventAction === "opened" || eventAction === "edited") {
         eventData = {
           eventName: "issues",
-          eventAction: "opened",
+          eventAction: eventAction as "opened" | "edited",
           isPR: false,
           issueNumber,
           baseBranch,
@@ -397,10 +397,12 @@ export function getEventTypeAndContext(envVars: PreparedContext): {
       };
 
     case "issues":
-      if (eventData.eventAction === "opened") {
+      if (eventData.eventAction === "opened" || eventData.eventAction === "edited") {
         return {
-          eventType: "ISSUE_CREATED",
-          triggerContext: `new issue with '${envVars.triggerPhrase}' in body`,
+          eventType: eventData.eventAction === "opened" ? "ISSUE_CREATED" : "ISSUE_EDITED",
+          triggerContext: eventData.eventAction === "opened"
+            ? `new issue with '${envVars.triggerPhrase}' in body`
+            : `edited issue with '${envVars.triggerPhrase}' in body`,
         };
       } else if (eventData.eventAction === "labeled") {
         return {
