@@ -5,12 +5,15 @@ on:
     types: [created]
   issues:
     types: [opened, assigned]
+  pull_request:
+    types: [opened, review_requested]
 
 jobs:
   claude-assistant:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || github.event.action == 'assigned'))
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || github.event.action == 'assigned')) ||
+      (github.event_name == 'pull_request' && (contains(github.event.pull_request.body, '@claude') || github.event.action == 'review_requested'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
